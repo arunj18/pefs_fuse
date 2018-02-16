@@ -591,7 +591,8 @@ struct disk_block{
 	int next_block;
 };
 static int opendisk(void){
-	int fd=open("the_fs",O_RDWR|O_CREAT|O_EXCL);
+	static int fd;
+	fd=open("the_fs",O_RDWR|O_CREAT|O_EXCL);
 	if(fd<0){
 		fd=open("the_fs",O_RDWR);
 		if(fd<0)
@@ -610,15 +611,16 @@ static int opendisk(void){
 		for(int i=0;i<8388608;i++){ //maybe change this to file size?
 			write(fd,"0",1);	
 		}
+		lseek(fd,0,SEEK_SET);
 		write(fd,"AJARAKFS",8);
-		lseek(fd,8,SEEK_SET);
+		//lseek(fd,8,SEEK_SET);
 		for(int i=0;i<2046;i++){ //set next 1022 bytes to zero
 			write(fd,"0",1);
 		}
 		int free_blocks=2046;
 		int total_blocks=2046;
-		write(fd,total_blocks,sizeof(total_blocks));
 		write(fd,free_blocks,sizeof(free_blocks));
+		write(fd,total_blocks,sizeof(total_blocks));
 		lseek(fd,-4096,SEEK_END);
 		write(fd,"AJARAKFS",8);
 		for(int i=0;i<2046;i++){ //set next 1022 bytes to zero
@@ -632,10 +634,10 @@ static int opendisk(void){
 		return fd;
 	}
 }
-static int readblock(unsigned int block_no,char *data,int offset,size_t bytes){
+int readblock(unsigned int block_no,char *data,int offset,size_t bytes){
+	int read_done;	
 	pthread_mutex_lock(&lock);
-	lseek(fd,(BLOCKSIZE*block_no)+offset,SEEK_SET);
-	static int read_done;	
+	lseek(fd,(BLOCKSIZE*(block_no+1))+offset,SEEK_SET);	
 	if(offset+bytes > BLOCKSIZE-sizeof(struct disk_block)) //1 for char at end
 		read_done=read(fd,data,(bytes-(BLOCKSIZE-(offset+bytes))));
 	else
@@ -643,16 +645,90 @@ static int readblock(unsigned int block_no,char *data,int offset,size_t bytes){
 	pthread_mutex_unlock(&lock);
 	return read_done;
 }
-static int writeblock(unsigned int block_no,char *data,int offset,size_t bytes){
+int writeblock(unsigned int block_no,char *data,int offset,size_t bytes){
+	int write_done;	
 	pthread_mutex_lock(&lock);	
-	lseek(fd,(BLOCKSIZE*block_no)+offset,SEEK_SET);
-	static int write_done;	
+	lseek(fd,(BLOCKSIZE*(block_no+1))+offset,SEEK_SET);	
 	if(offset+bytes > BLOCKSIZE-sizeof(struct disk_block)) //1 for char at end
 		write_done=write(fd,data,(bytes-(BLOCKSIZE-(offset+bytes))));
 	else
 		write_done=write(fd,data,bytes);
-	pthread_mutex_unlock(&lock);	
+	pthread_mutex_unlock(&lock);
 	return write_done;
+}
+int get_next_block(int block_no,int nxorpr){
+	struct disk_block temp;
+	pthread_mutex_lock(&lock);
+	lseek(fd,BLOCKSIZE*(block_no+2)-sizeof(struct disk_block),SEEK_SET);
+	read(fd,&temp,sizeof(struct disk_block));
+	pthread_mutex_lock(&lock);
+	if(nxorpr==0)
+		return temp.prev_block;
+	else if(nxorpr==1)
+		return temp.next_block;
+}
+int relblock(int block_no){
+	int free_b;	
+	pthread_mutex_lock(&lock);
+	lseek(fd,8+block_no,SEEK_SET);
+	write(fd,"0",1);
+	lseek(fd,8+2046,SEEK_SET);
+	read(fd,&free_b,sizeof(int));
+	free_b++;
+	lseek(fd,-sizeof(int),SEEK_CUR);
+	write(fd,&free_b,sizeof(int));
+	lseek(fd,-BLOCKSIZE + 8 + block_no,SEEK_END);
+	write(fd,"0",1);
+	lseek(fd,-BLOCKSIZE + 8 + 2046,SEEK_END);
+	write(fd,&free_b,sizeof(int));
+	pthread_mutex_unlock(&lock);
+}
+int reqblock(int block_no){
+	char buf;
+	int i;
+	int free_b;
+	int prev;
+	int next;
+	pthread_mutex_lock(&lock);
+	lseek(fd,8+2046,SEEK_SET);
+	read(fd,&free_b,sizeof(int));
+	if(free_b==0)
+		return -1;	
+	lseek(fd,8,SEEK_SET);
+	for(i=0;i<2046;i++){
+		read(fd,&buf,1);
+		if(buf=='0'){
+			lseek(fd,-1,SEEK_CUR);
+			write(fd,'1',1);
+			lseek(fd,-BLOCKSIZE+8+i,SEEK_END);
+			write(fd,'1',1);
+			free_b--;
+			break;
+		}
+	}
+	if(i==2046)
+		return -1;
+	lseek(fd,8+2046,SEEK_SET);
+	write(fd,&free_b,sizeof(free_b));
+	lseek(fd,-BLOCKSIZE+8+2046,SEEK_END);
+	write(fd,&free_b,sizeof(free_b));
+	struct disk_block temp;
+	if(block_no >= 0){
+		lseek(fd,BLOCKSIZE*(block_no+2)-sizeof(struct disk_block),SEEK_SET);
+		read(fd,&buf,1);
+		read(fd,&prev,sizeof(int));
+		temp.type=buf;
+		temp.prev_block=prev;
+		temp.next_block=i;
+		lseek(fd,-1*(sizeof(int)+sizeof(char)),SEEK_CUR);
+		write(fd,&temp,sizeof(struct disk_block));
+	}
+	lseek(fd,BLOCKSIZE*(i+2)-sizeof(struct disk_block),SEEK_SET);
+	temp.prev_block=block_no;
+	temp.next_block=-1;
+	write(fd,&temp,sizeof(struct disk_block));
+	pthread_mutex_unlock(&lock);
+	return i;
 }
 
 static struct fuse_operations ourfs_oper ={
