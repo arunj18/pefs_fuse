@@ -634,7 +634,15 @@ static int opendisk(void){
 		return fd;
 	}
 }
-int readblock(unsigned int block_no,char *data,int offset,size_t bytes){
+char getblocktype(int block_no){
+	struct disk_block temp;
+	pthread_mutex_lock(&lock);
+	lseek(fd,BLOCKSIZE*(block_no+2)-sizeof(struct disk_block),SEEK_SET);
+	read(fd,&temp,sizeof(struct disk_block));	
+	pthread_mutex_unlock(&lock);
+	return temp.type;
+}
+int readblock(int block_no,char *data,int offset,size_t bytes){
 	int read_done;	
 	pthread_mutex_lock(&lock);
 	lseek(fd,(BLOCKSIZE*(block_no+1))+offset,SEEK_SET);	
@@ -645,7 +653,7 @@ int readblock(unsigned int block_no,char *data,int offset,size_t bytes){
 	pthread_mutex_unlock(&lock);
 	return read_done;
 }
-int writeblock(unsigned int block_no,char *data,int offset,size_t bytes){
+int writeblock(int block_no,char *data,int offset,size_t bytes){
 	int write_done;	
 	pthread_mutex_lock(&lock);	
 	lseek(fd,(BLOCKSIZE*(block_no+1))+offset,SEEK_SET);	
@@ -662,33 +670,22 @@ int get_next_block(int block_no,int nxorpr){
 	lseek(fd,BLOCKSIZE*(block_no+2)-sizeof(struct disk_block),SEEK_SET);
 	read(fd,&temp,sizeof(struct disk_block));
 	pthread_mutex_lock(&lock);
-	if(nxorpr==0)
+	if(nxorpr==0){
+		pthread_mutex_unlock(&lock);
 		return temp.prev_block;
-	else if(nxorpr==1)
+	}
+	else if(nxorpr==1){
+		pthread_mutex_unlock(&lock);
+	
 		return temp.next_block;
+	}
 }
-int relblock(int block_no){
-	int free_b;	
-	pthread_mutex_lock(&lock);
-	lseek(fd,8+block_no,SEEK_SET);
-	write(fd,"0",1);
-	lseek(fd,8+2046,SEEK_SET);
-	read(fd,&free_b,sizeof(int));
-	free_b++;
-	lseek(fd,-sizeof(int),SEEK_CUR);
-	write(fd,&free_b,sizeof(int));
-	lseek(fd,-BLOCKSIZE + 8 + block_no,SEEK_END);
-	write(fd,"0",1);
-	lseek(fd,-BLOCKSIZE + 8 + 2046,SEEK_END);
-	write(fd,&free_b,sizeof(int));
-	pthread_mutex_unlock(&lock);
-}
-int reqblock(int block_no){
+int reqblock(int block_no,char type){
 	char buf;
 	int i;
 	int free_b;
-	int prev;
-	int next;
+	int prev=-1;
+	int next=-1;
 	pthread_mutex_lock(&lock);
 	lseek(fd,8+2046,SEEK_SET);
 	read(fd,&free_b,sizeof(int));
@@ -706,8 +703,10 @@ int reqblock(int block_no){
 			break;
 		}
 	}
-	if(i==2046)
+	if(i==2046){
+		pthread_mutex_unlock(&lock);
 		return -1;
+	}
 	lseek(fd,8+2046,SEEK_SET);
 	write(fd,&free_b,sizeof(free_b));
 	lseek(fd,-BLOCKSIZE+8+2046,SEEK_END);
@@ -724,13 +723,150 @@ int reqblock(int block_no){
 		write(fd,&temp,sizeof(struct disk_block));
 	}
 	lseek(fd,BLOCKSIZE*(i+2)-sizeof(struct disk_block),SEEK_SET);
+	temp.type=type;
 	temp.prev_block=block_no;
 	temp.next_block=-1;
 	write(fd,&temp,sizeof(struct disk_block));
 	pthread_mutex_unlock(&lock);
 	return i;
 }
+int relblock(int block_no){
+	char buf;
+	int i;
+	int free_b;
+	int prev;
+	int next;
+	struct disk_block temp,temp1;
+	if(block_no<0 && block_no >2046){
+		pthread_mutex_unlock(&lock);
+	
+		return -1;
+	}
+	pthread_mutex_lock(&lock);
+	lseek(fd,8+block_no,SEEK_SET);
+	write(fd,'0',1);
+	lseek(fd,8+2046,SEEK_SET);
+	read(fd,&free_b,sizeof(int));
+	lseek(fd,-sizeof(int),SEEK_CURR);
+	free_b++;
+	write(fd,&free_b,sizeof(int));
+	lseek(fd,BLOCKSIZE*(block_no+2)-sizeof(struct disk_block),SEEK_SET);
+	read(fd,&temp,sizeof(struct disk_block));
+	if(temp.prev!=-1){
+		lseek(fd,BLOCKSIZE*(temp.prev+2)-sizeof(struct disk_block),SEEK_SET);
+		read(fd,&temp1,sizeof(struct disk_block));
+		temp1.next=next;
+		lseek(fd,-sizeof(struct disk_block),SEEK_CUR);
+		write(fd,&temp1,sizeof(struct disk_block));
+	}
+	if(temp.next!=-1 && temp.type=='i'){
+		lseek(fd,BLOCKSIZE*(temp.next+2)-sizeof(struct disk_block),SEEK_SET);
+		read(fd,&temp1,sizeof(struct disk_block));
+		temp1.next=;
+		lseek(fd,-sizeof(struct disk_block),SEEK_CUR);
+		write(fd,&temp1,sizeof(struct disk_block));
+	}
+	lseek(fd,-BLOCKSIZE+8+block_no,SEEK_END);
+	write(fd,'0',1);
+	lseek(fd,-BLOCKSIZE+8+2046,SEEK_END);
+	write(fd,&free_b,sizeof(int));
+	pthread_mutex_unlock(&lock);
+	return 0;
+}
+struct inode_block{
+	struct node inodes[25];
+	char bitmap[25];
+	int free_inode_no;
+};
+int writeinode(ino_t inode_no,struct node inode){
+	int block_no=inode_no%10000; //which block is the inode present in?
+	if(getblocktype(block_no)!='i')
+		return -1;
+	inode_no=inode_no/10000;
+	int node_in_block=inode_no%100;
+	if(node_in_block > 24)
+		return -1;
+	struct inode_block inode_table;
+	readblock(block_no,&inode_table,0,sizeof(struct inode_block));
+	//inode=(struct node *)(malloc(sizeof(struct node))); //make some memory on to point the result to
+	inode_table.inodes[node_in_block]=*inode;
+	writeblock(block_no,&inode_table,0,sizeof(struct inode_block));
+	return 0;
+}
+int relinode(ino_t inode_no){
+	int block_no=inode_no%10000; //which block is the inode present in?
+	if(getblocktype(block_no)!='i')
+		return -1;
+	inode_no=inode_no/10000;
+	int node_in_block=inode_no%100;
+	if(node_in_block > 24)
+		return -1;
+	struct inode_block inode_table;
+	readblock(block_no,&inode_table,0,sizeof(struct inode_block));
+	//inode=(struct node *)(malloc(sizeof(struct node))); //make some memory on to point the result to
+	*inode=inode_table.inodes[node_in_block];
+	inode_table.bitmap[node_in_block]='0';
+	inode_table.free_inode_no++;
+	if(inode_table.free_inode_no==25 && block_no!=0)
+		relblock(block_no);
+	else
+		writeblock(block_no,&inode_table,0,sizeof(struct inode_block));
+	return 0;
+}
+ino_t reqinode(struct node *inode){
+	int block_no=0; //which block is the inode present in?
+	ino_t inode_no=0;
+	int node_in_block=0;
 
+	struct inode_block inode_table;
+	//readblock(block_no,&inode_table,0,sizeof(struct inode_block));
+	//inode=(struct node *)(malloc(sizeof(struct node))); //make some memory on to point the result to
+	while(1){
+		readblock(block_no,&inode_table,0,sizeof(struct inode_block));
+		if(inode_table.free_inode_no !=0){
+			for(int k=0;k<25;k++){
+				if(inode_table.bitmap[k]=='0'){
+					node_in_block=k;
+					break;
+				}
+			}
+			break;
+		}
+		else{
+			if(get_next_block(block_no,1)==-1){
+				int temp=reqblock(block_no,'i');
+				if(temp==-1)
+					return -1;
+				else
+					block_no=temp;
+				for(int k=0;k<25;k++)
+					inode_table.bitmap[k]='0';
+				inode_table.free_inode_no=25;			
+			}
+			else
+				block_no=get_next_block(block_no,1);
+		}
+	}	
+	inode_table.inodes[node_in_block=*inode;
+	inode_table.bitmap[node_in_block]='1';
+	inode_table.free_inode_no--;
+	writeblock(block_no,&inode_table,0,sizeof(struct inode_block));
+	return 0;
+}
+int getinode(ino_t inode_no,struct node * inode){
+	int block_no=inode_no%10000; //which block is the inode present in?
+	if(getblocktype(block_no)!='i')
+		return -1;
+	inode_no=inode_no/10000;
+	int node_in_block=inode_no%100;
+	if(node_in_block > 24)
+		return -1;
+	struct inode_block inode_table;
+	readblock(block_no,&inode_table,0,sizeof(struct inode_block));
+	//inode=(struct node *)(malloc(sizeof(struct node))); //make some memory on to point the result to
+	*inode=inode_table.inodes[node_in_block];
+	return 0;
+}
 static struct fuse_operations ourfs_oper ={
 	.getattr      = ourfs_getattr,
 	.readlink     = ourfs_readlink,

@@ -6,7 +6,7 @@
 
 struct node {
   struct stat   vstat;
-  void         *data;
+  int         data;
   unsigned int  fd_count;
   int           delete_on_close;
 };
