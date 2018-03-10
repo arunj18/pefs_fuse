@@ -763,99 +763,98 @@ int relblock(int block_no){ //function to release a block assigned to you
 	pthread_mutex_unlock(&lock); //give up lock on file read/write
 	return 0; //successful release of block
 }
-struct inode_block{
-	struct node inodes[25];
-	char bitmap[25];
-	int free_inode_no;
+struct inode_block{ //inode block structure
+	struct node inodes[25]; //inodes
+	char bitmap[25]; //bitmap
+	int free_inode_no; //number of inodes that can be added
 };
-int writeinode(ino_t inode_no,struct node inode){
+int writeinode(ino_t inode_no,struct node inode){ //function to write an inode to file
 	int block_no=inode_no%10000; //which block is the inode present in?
-	if(getblocktype(block_no)!='i')
+	if(getblocktype(block_no)!='i') //make sure  the block is a inode block
 		return -1;
-	inode_no=inode_no/10000;
-	int node_in_block=inode_no%100;
-	if(node_in_block > 24)
+	inode_no=inode_no/10000; //shift to get the node_in_block
+	int node_in_block=inode_no%100; //get the node_in_block
+	if(node_in_block > 24) //if the node_in_block doesn't exist, return error
 		return -1;
-	struct inode_block inode_table;
-	readblock(block_no,&inode_table,0,sizeof(struct inode_block));
+	struct inode_block inode_table; //complete inode block
+	readblock(block_no,&inode_table,0,sizeof(struct inode_block)); //read the whole block at once
 	//inode=(struct node *)(malloc(sizeof(struct node))); //make some memory on to point the result to
-	inode_table.inodes[node_in_block]=*inode;
-	writeblock(block_no,&inode_table,0,sizeof(struct inode_block));
+	inode_table.inodes[node_in_block]=*inode; //change inode in the inode table
+	writeblock(block_no,&inode_table,0,sizeof(struct inode_block)); //write the changed inode table back
 	return 0;
 }
-int relinode(ino_t inode_no){
+int relinode(ino_t inode_no){ //function to release an inode
 	int block_no=inode_no%10000; //which block is the inode present in?
-	if(getblocktype(block_no)!='i')
+	if(getblocktype(block_no)!='i') //check if inode block
 		return -1;
-	inode_no=inode_no/10000;
-	int node_in_block=inode_no%100;
-	if(node_in_block > 24)
+	inode_no=inode_no/10000; //shift to get node_in_block
+	int node_in_block=inode_no%100; //get the node_in_block
+	if(node_in_block > 24) //if node_in_block doesn't exist,return an error
 		return -1;
-	struct inode_block inode_table;
-	readblock(block_no,&inode_table,0,sizeof(struct inode_block));
+	struct inode_block inode_table; //inode table
+	readblock(block_no,&inode_table,0,sizeof(struct inode_block)); //get inode table from memory
 	//inode=(struct node *)(malloc(sizeof(struct node))); //make some memory on to point the result to
-	*inode=inode_table.inodes[node_in_block];
-	inode_table.bitmap[node_in_block]='0';
-	inode_table.free_inode_no++;
-	if(inode_table.free_inode_no==25 && block_no!=0)
-		relblock(block_no);
-	else
-		writeblock(block_no,&inode_table,0,sizeof(struct inode_block));
-	return 0;
+	//*inode=inode_table.inodes[node_in_block]; //need not do this?
+	inode_table.bitmap[node_in_block]='0'; //mark that inode as free to use
+	inode_table.free_inode_no++; //increase the number of free inodes
+	if(inode_table.free_inode_no==25 && block_no!=0) //if block is empty and it is not the root inode block,we should free it
+		relblock(block_no); //release that block
+	else 
+		writeblock(block_no,&inode_table,0,sizeof(struct inode_block)); //if not,write the changed inode block back
+	return 0; //return success
 }
-ino_t reqinode(struct node *inode){
+ino_t reqinode(void){ //change here,no parameters. Use write inode itself to update it. This function will only give you an inode number
 	int block_no=0; //which block is the inode present in?
-	ino_t inode_no=0;
+	ino_t inode_no=0; //start from root inode block
 	int node_in_block=0;
-
 	struct inode_block inode_table;
 	//readblock(block_no,&inode_table,0,sizeof(struct inode_block));
 	//inode=(struct node *)(malloc(sizeof(struct node))); //make some memory on to point the result to
-	while(1){
-		readblock(block_no,&inode_table,0,sizeof(struct inode_block));
-		if(inode_table.free_inode_no !=0){
-			for(int k=0;k<25;k++){
-				if(inode_table.bitmap[k]=='0'){
-					node_in_block=k;
-					break;
+	while(1){ //keep doing till an inode is assigned
+		readblock(block_no,&inode_table,0,sizeof(struct inode_block)); //read the inode block
+		if(inode_table.free_inode_no !=0){ //if there's a free inode in that block
+			for(int k=0;k<25;k++){ //find from bitmap which one is free
+				if(inode_table.bitmap[k]=='0'){ //found a free block!
+					node_in_block=k; //this will be our node in block
+					break; //break from this loop
 				}
 			}
-			break;
+			break; //break from outer loop,we found an inode to use
 		}
 		else{
-			if(get_next_block(block_no,1)==-1){
-				int temp=reqblock(block_no,'i');
-				if(temp==-1)
+			if(get_next_block(block_no,1)==-1){ //no free inodes in this inode block, we don't have another block either
+				int temp=reqblock(block_no,'i'); //request for a new block. 
+				if(temp==-1) //no free blocks either,return error
 					return -1;
 				else
-					block_no=temp;
-				for(int k=0;k<25;k++)
+					block_no=temp; //we got a free block
+				for(int k=0;k<25;k++) //set the bitmap for the new inode table
 					inode_table.bitmap[k]='0';
-				inode_table.free_inode_no=25;			
+				inode_table.free_inode_no=25; //all inodes are free to use
 			}
 			else
-				block_no=get_next_block(block_no,1);
+				block_no=get_next_block(block_no,1); //move to the next block to check for empty entries we can use
 		}
 	}	
-	inode_table.inodes[node_in_block=*inode;
-	inode_table.bitmap[node_in_block]='1';
-	inode_table.free_inode_no--;
-	writeblock(block_no,&inode_table,0,sizeof(struct inode_block));
-	return 0;
+	//inode_table.inodes[node_in_block]=*inode; //don't need to do this because you have requested for a inode number 
+	inode_table.bitmap[node_in_block]='1'; //bitmap will show this inode is taken
+	inode_table.free_inode_no--; //reduce the number of free inodes
+	writeblock(block_no,&inode_table,0,sizeof(struct inode_block)); //write the changed inode table back
+	return node_in_block*10000+block_no; //return inode number
 }
-int getinode(ino_t inode_no,struct node * inode){
+int getinode(ino_t inode_no,struct node * inode){ //get the inode
 	int block_no=inode_no%10000; //which block is the inode present in?
-	if(getblocktype(block_no)!='i')
+	if(getblocktype(block_no)!='i') //make sure it is an inode block
 		return -1;
-	inode_no=inode_no/10000;
-	int node_in_block=inode_no%100;
-	if(node_in_block > 24)
+	inode_no=inode_no/10000; //shift to get the node_in_block
+	int node_in_block=inode_no%100; 
+	if(node_in_block > 24) //node_in_block should exist otherwise return error
 		return -1;
-	struct inode_block inode_table;
-	readblock(block_no,&inode_table,0,sizeof(struct inode_block));
+	struct inode_block inode_table; 
+	readblock(block_no,&inode_table,0,sizeof(struct inode_block)); //get the inode table
 	//inode=(struct node *)(malloc(sizeof(struct node))); //make some memory on to point the result to
-	*inode=inode_table.inodes[node_in_block];
-	return 0;
+	*inode=inode_table.inodes[node_in_block]; //get the inode from the inode table and copy values
+	return 0; //successful return
 }
 static struct fuse_operations ourfs_oper ={
 	.getattr      = ourfs_getattr,
