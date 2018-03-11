@@ -598,7 +598,7 @@ static int opendisk(void){
 		if(fd<0)
 			exit(4);
 		char buf[9];
-		read(fd,&buf,8);
+		read(fd,(char *)&buf,8);
 		buf[8]='\0';
 		if(strcmp(buf,"AJARAKFS")!=0){
 			exit(4);
@@ -619,15 +619,15 @@ static int opendisk(void){
 		}
 		int free_blocks=2046;
 		int total_blocks=2046;
-		write(fd,free_blocks,sizeof(free_blocks));
-		write(fd,total_blocks,sizeof(total_blocks));
+		write(fd,(char *)&free_blocks,sizeof(free_blocks));
+		write(fd,(char *)&total_blocks,sizeof(total_blocks));
 		lseek(fd,-4096,SEEK_END);
 		write(fd,"AJARAKFS",8);
 		for(int i=0;i<2046;i++){ //set next 1022 bytes to zero
 			write(fd,"0",1);
 		}
-		write(fd,total_blocks,sizeof(total_blocks));
-		write(fd,free_blocks,sizeof(free_blocks));	
+		write(fd,(char *)&total_blocks,sizeof(total_blocks));
+		write(fd,(char *)&free_blocks,sizeof(free_blocks));	
 		// 2 super blocks written,one at end,one at beginning	
 		lseek(fd,0,SEEK_SET);
 		//lseek(fd,8,SEEK_SET);
@@ -638,7 +638,7 @@ char getblocktype(int block_no){ //function to know what kind of block it is, i.
 	struct disk_block temp; //temporary storage
 	pthread_mutex_lock(&lock); //get a lock on the read and write from file
 	lseek(fd,BLOCKSIZE*(block_no+2)-sizeof(struct disk_block),SEEK_SET); //move to where the block info is stored
-	read(fd,&temp,sizeof(struct disk_block));	//read from that location
+	read(fd,(char *)&temp,sizeof(struct disk_block));	//read from that location
 	pthread_mutex_unlock(&lock); //give up the lock on the file read/write
 	return temp.type; //return the type of the block
 }
@@ -668,7 +668,7 @@ int get_next_block(int block_no,int nxorpr){ //function to get next and prev blo
 	struct disk_block temp; //block info buffer
 	pthread_mutex_lock(&lock); //get a lock on file read/write
 	lseek(fd,BLOCKSIZE*(block_no+2)-sizeof(struct disk_block),SEEK_SET); //move to block info
-	read(fd,&temp,sizeof(struct disk_block)); //read the block info
+	read(fd,(char *)&temp,sizeof(struct disk_block)); //read the block info
 	pthread_mutex_unlock(&lock); //give up lock on file read/write
 	if(nxorpr==0)	//if 0,prev; if 1,next : Replace with #define or enum?
 		return temp.prev_block; 
@@ -683,17 +683,17 @@ int reqblock(int block_no,char type){ //function to request a block
 	int next=-1;
 	pthread_mutex_lock(&lock); //get a lock on file read/write
 	lseek(fd,8+2046,SEEK_SET); //go to super block and get the number of free blocks
-	read(fd,&free_b,sizeof(int));
+	read(fd,(char *)&free_b,sizeof(int));
 	if(free_b==0)
 		return -1;	//if no free blocks,return an error?
 	lseek(fd,8,SEEK_SET); //go to bitmap
 	for(i=0;i<2046;i++){ //go through bitmap one by one and check which block is free
-		read(fd,&buf,1);
+		read(fd,(char *)&buf,1);
 		if(buf=='0'){ //if free
 			lseek(fd,-1,SEEK_CUR); //move behind
-			write(fd,'1',1); //set it as not free
+			write(fd,"1",1); //set it as not free
 			lseek(fd,-BLOCKSIZE+8+i,SEEK_END); //do the same for the super block at the end
-			write(fd,'1',1); 
+			write(fd,"1",1); 
 			free_b--; //reduce number of free blocks
 			break;
 		}
@@ -703,17 +703,17 @@ int reqblock(int block_no,char type){ //function to request a block
 		return -1; //why? because if this happens free_b should be zero,but it's not. Crash the filesystem here. Superblock is corrupt.
 	}
 	lseek(fd,8+2046,SEEK_SET); //update the number of free blocks
-	write(fd,&free_b,sizeof(free_b));
+	write(fd,(char *)&free_b,sizeof(free_b));
 	lseek(fd,-BLOCKSIZE+8+2046,SEEK_END); //for superblock at end
-	write(fd,&free_b,sizeof(free_b)); 
+	write(fd,(char *)&free_b,sizeof(free_b)); 
 	struct disk_block temp; //block info buffer
 	if(block_no >= 0){ //to do previous block linking
 		lseek(fd,BLOCKSIZE*(block_no+2)-sizeof(struct disk_block),SEEK_SET); //go to previous block's block info
-		read(fd,&temp,sizeof(struct disk_block)); //read block info
+		read(fd,(char *)&temp,sizeof(struct disk_block)); //read block info
 		buf=temp.type; //get type from prev block
 		temp.next_block=i; //make prev block point to new block
 		lseek(fd,-1*(sizeof(struct disk_block)),SEEK_CUR); //move to block info
-		write(fd,&temp,sizeof(struct disk_block)); //write the block info back 
+		write(fd,(char *)&temp,sizeof(struct disk_block)); //write the block info back 
 	}
 	lseek(fd,BLOCKSIZE*(i+2)-sizeof(struct disk_block),SEEK_SET); //go to new block's block info 
 	temp.type=type; //get the type of block from parameter
@@ -721,7 +721,7 @@ int reqblock(int block_no,char type){ //function to request a block
 		temp.type=buf; //if it is to continue a linked list of blocks
 	temp.prev_block=block_no; //set previous block number
 	temp.next_block=-1; //no next block
-	write(fd,&temp,sizeof(struct disk_block)); //write changes to block info
+	write(fd,(char *)&temp,sizeof(struct disk_block)); //write changes to block info
 	pthread_mutex_unlock(&lock); //give up lock on file read/write
 	return i; //return block number allocated
 }
@@ -734,32 +734,32 @@ int relblock(int block_no){ //function to release a block assigned to you
 		return -1;
 	pthread_mutex_lock(&lock); //get a lock on file read/write
 	lseek(fd,8+block_no,SEEK_SET); //move to superblock's bitmap
-	write(fd,'0',1); //write 0 to indicate block is free
+	write(fd,"0",1); //write 0 to indicate block is free
 	lseek(fd,8+2046,SEEK_SET); //move to superblock number of free blocks part
-	read(fd,&free_b,sizeof(int));  //read how many blocks are free
+	read(fd,(char *)&free_b,sizeof(int));  //read how many blocks are free
 	lseek(fd,-sizeof(int),SEEK_CUR); //move back
 	free_b++; //increase the number of free blocks
-	write(fd,&free_b,sizeof(int)); //write the number of free blocks
+	write(fd,(char *)&free_b,sizeof(int)); //write the number of free blocks
 	lseek(fd,BLOCKSIZE*(block_no+2)-sizeof(struct disk_block),SEEK_SET); //move to the block to be freed
-	read(fd,&temp,sizeof(struct disk_block)); //read block info
+	read(fd,(char* )&temp,sizeof(struct disk_block)); //read block info
 	if(temp.prev_block!=-1){ //if there is a block pointing to it,the link should be cut
 		lseek(fd,BLOCKSIZE*(temp.prev_block+2)-sizeof(struct disk_block),SEEK_SET); //move to that block
-		read(fd,&temp1,sizeof(struct disk_block)); //read block info
+		read(fd,(char *)&temp1,sizeof(struct disk_block)); //read block info
 		temp1.next_block=temp.next_block; //this should be -1! Except when we use it for inode blocks
 		lseek(fd,-sizeof(struct disk_block),SEEK_CUR); //move to block info
-		write(fd,&temp1,sizeof(struct disk_block)); //write back changes to block info
+		write(fd,(char *)&temp1,sizeof(struct disk_block)); //write back changes to block info
 	}
 	if(temp.next_block!=-1 && temp.type=='i'){ //difference for inode blocks
 		lseek(fd,BLOCKSIZE*(temp.next_block+2)-sizeof(struct disk_block),SEEK_SET); //move to next block
-		read(fd,&temp1,sizeof(struct disk_block)); //get block info
+		read(fd,(char *)&temp1,sizeof(struct disk_block)); //get block info
 		temp1.prev_block=temp.prev_block; //make next block point to the one before one being released
 		lseek(fd,-sizeof(struct disk_block),SEEK_CUR); //move back
-		write(fd,&temp1,sizeof(struct disk_block)); //write changess
+		write(fd,(char *)&temp1,sizeof(struct disk_block)); //write changess
 	}
 	lseek(fd,-BLOCKSIZE+8+block_no,SEEK_END); //move to superblock at end
-	write(fd,'0',1); //write the changes to bitmap
+	write(fd,"0",1); //write the changes to bitmap
 	lseek(fd,-BLOCKSIZE+8+2046,SEEK_END); //move to free block number
-	write(fd,&free_b,sizeof(int)); //write changes
+	write(fd,(char *)&free_b,sizeof(int)); //write changes
 	pthread_mutex_unlock(&lock); //give up lock on file read/write
 	return 0; //successful release of block
 }
@@ -777,10 +777,10 @@ int writeinode(ino_t inode_no,struct node inode){ //function to write an inode t
 	if(node_in_block > 24) //if the node_in_block doesn't exist, return error
 		return -1;
 	struct inode_block inode_table; //complete inode block
-	readblock(block_no,&inode_table,0,sizeof(struct inode_block)); //read the whole block at once
+	readblock(block_no,(char *)&inode_table,0,sizeof(struct inode_block)); //read the whole block at once
 	//inode=(struct node *)(malloc(sizeof(struct node))); //make some memory on to point the result to
 	inode_table.inodes[node_in_block]=inode; //change inode in the inode table
-	writeblock(block_no,&inode_table,0,sizeof(struct inode_block)); //write the changed inode table back
+	writeblock(block_no,(char *)&inode_table,0,sizeof(struct inode_block)); //write the changed inode table back
 	return 0;
 }
 int relinode(ino_t inode_no){ //function to release an inode
@@ -792,7 +792,7 @@ int relinode(ino_t inode_no){ //function to release an inode
 	if(node_in_block > 24) //if node_in_block doesn't exist,return an error
 		return -1;
 	struct inode_block inode_table; //inode table
-	readblock(block_no,&inode_table,0,sizeof(struct inode_block)); //get inode table from memory
+	readblock(block_no,(char *)&inode_table,0,sizeof(struct inode_block)); //get inode table from memory
 	//inode=(struct node *)(malloc(sizeof(struct node))); //make some memory on to point the result to
 	//*inode=inode_table.inodes[node_in_block]; //need not do this?
 	inode_table.bitmap[node_in_block]='0'; //mark that inode as free to use
@@ -800,7 +800,7 @@ int relinode(ino_t inode_no){ //function to release an inode
 	if(inode_table.free_inode_no==25 && block_no!=0) //if block is empty and it is not the root inode block,we should free it
 		relblock(block_no); //release that block
 	else 
-		writeblock(block_no,&inode_table,0,sizeof(struct inode_block)); //if not,write the changed inode block back
+		writeblock(block_no,(char *)&inode_table,0,sizeof(struct inode_block)); //if not,write the changed inode block back
 	return 0; //return success
 }
 ino_t reqinode(void){ //change here,no parameters. Use write inode itself to update it. This function will only give you an inode number
@@ -811,7 +811,7 @@ ino_t reqinode(void){ //change here,no parameters. Use write inode itself to upd
 	//readblock(block_no,&inode_table,0,sizeof(struct inode_block));
 	//inode=(struct node *)(malloc(sizeof(struct node))); //make some memory on to point the result to
 	while(1){ //keep doing till an inode is assigned
-		readblock(block_no,&inode_table,0,sizeof(struct inode_block)); //read the inode block
+		readblock(block_no,(char *)&inode_table,0,sizeof(struct inode_block)); //read the inode block
 		if(inode_table.free_inode_no !=0){ //if there's a free inode in that block
 			for(int k=0;k<25;k++){ //find from bitmap which one is free
 				if(inode_table.bitmap[k]=='0'){ //found a free block!
@@ -839,7 +839,7 @@ ino_t reqinode(void){ //change here,no parameters. Use write inode itself to upd
 	//inode_table.inodes[node_in_block]=*inode; //don't need to do this because you have requested for a inode number 
 	inode_table.bitmap[node_in_block]='1'; //bitmap will show this inode is taken
 	inode_table.free_inode_no--; //reduce the number of free inodes
-	writeblock(block_no,&inode_table,0,sizeof(struct inode_block)); //write the changed inode table back
+	writeblock(block_no,(char *)&inode_table,0,sizeof(struct inode_block)); //write the changed inode table back
 	return node_in_block*10000+block_no; //return inode number
 }
 int getinode(ino_t inode_no,struct node * inode){ //get the inode
@@ -851,7 +851,7 @@ int getinode(ino_t inode_no,struct node * inode){ //get the inode
 	if(node_in_block > 24) //node_in_block should exist otherwise return error
 		return -1;
 	struct inode_block inode_table; 
-	readblock(block_no,&inode_table,0,sizeof(struct inode_block)); //get the inode table
+	readblock(block_no,(char *)&inode_table,0,sizeof(struct inode_block)); //get the inode table
 	//inode=(struct node *)(malloc(sizeof(struct node))); //make some memory on to point the result to
 	*inode=inode_table.inodes[node_in_block]; //get the inode from the inode table and copy values
 	return 0; //successful return
