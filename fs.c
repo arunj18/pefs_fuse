@@ -712,7 +712,7 @@ int reqblock(int block_no,char type){ //function to request a block
 		read(fd,&temp,sizeof(struct disk_block)); //read block info
 		buf=temp.type; //get type from prev block
 		temp.next_block=i; //make prev block point to new block
-		lseek(fd,-1*(sizeof(struct disk_block),SEEK_CUR); //move to block info
+		lseek(fd,-1*(sizeof(struct disk_block)),SEEK_CUR); //move to block info
 		write(fd,&temp,sizeof(struct disk_block)); //write the block info back 
 	}
 	lseek(fd,BLOCKSIZE*(i+2)-sizeof(struct disk_block),SEEK_SET); //go to new block's block info 
@@ -737,22 +737,22 @@ int relblock(int block_no){ //function to release a block assigned to you
 	write(fd,'0',1); //write 0 to indicate block is free
 	lseek(fd,8+2046,SEEK_SET); //move to superblock number of free blocks part
 	read(fd,&free_b,sizeof(int));  //read how many blocks are free
-	lseek(fd,-sizeof(int),SEEK_CURR); //move back
+	lseek(fd,-sizeof(int),SEEK_CUR); //move back
 	free_b++; //increase the number of free blocks
 	write(fd,&free_b,sizeof(int)); //write the number of free blocks
 	lseek(fd,BLOCKSIZE*(block_no+2)-sizeof(struct disk_block),SEEK_SET); //move to the block to be freed
 	read(fd,&temp,sizeof(struct disk_block)); //read block info
-	if(temp.prev!=-1){ //if there is a block pointing to it,the link should be cut
-		lseek(fd,BLOCKSIZE*(temp.prev+2)-sizeof(struct disk_block),SEEK_SET); //move to that block
+	if(temp.prev_block!=-1){ //if there is a block pointing to it,the link should be cut
+		lseek(fd,BLOCKSIZE*(temp.prev_block+2)-sizeof(struct disk_block),SEEK_SET); //move to that block
 		read(fd,&temp1,sizeof(struct disk_block)); //read block info
-		temp1.next=temp.next; //this should be -1! Except when we use it for inode blocks
+		temp1.next_block=temp.next_block; //this should be -1! Except when we use it for inode blocks
 		lseek(fd,-sizeof(struct disk_block),SEEK_CUR); //move to block info
 		write(fd,&temp1,sizeof(struct disk_block)); //write back changes to block info
 	}
-	if(temp.next!=-1 && temp.type=='i'){ //difference for inode blocks
-		lseek(fd,BLOCKSIZE*(temp.next+2)-sizeof(struct disk_block),SEEK_SET); //move to next block
+	if(temp.next_block!=-1 && temp.type=='i'){ //difference for inode blocks
+		lseek(fd,BLOCKSIZE*(temp.next_block+2)-sizeof(struct disk_block),SEEK_SET); //move to next block
 		read(fd,&temp1,sizeof(struct disk_block)); //get block info
-		temp1.prev=temp.prev; //make next block point to the one before one being released
+		temp1.prev_block=temp.prev_block; //make next block point to the one before one being released
 		lseek(fd,-sizeof(struct disk_block),SEEK_CUR); //move back
 		write(fd,&temp1,sizeof(struct disk_block)); //write changess
 	}
@@ -779,7 +779,7 @@ int writeinode(ino_t inode_no,struct node inode){ //function to write an inode t
 	struct inode_block inode_table; //complete inode block
 	readblock(block_no,&inode_table,0,sizeof(struct inode_block)); //read the whole block at once
 	//inode=(struct node *)(malloc(sizeof(struct node))); //make some memory on to point the result to
-	inode_table.inodes[node_in_block]=*inode; //change inode in the inode table
+	inode_table.inodes[node_in_block]=inode; //change inode in the inode table
 	writeblock(block_no,&inode_table,0,sizeof(struct inode_block)); //write the changed inode table back
 	return 0;
 }
