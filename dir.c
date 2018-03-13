@@ -16,8 +16,8 @@ int dir_add(struct node *dirnode, struct direntry *entry, int replace, int *adde
   	if(dir_find(dirnode, entry->name, strlen(entry->name), &existing_entry,&existing_blk,&entry_no)) {
 		if(replace) {
       			*added = 0;
-      			existing_entry->node_num = entry->node_num;
-			writeblock(existing_blk,(char *)existing_entry,DIRENT_SIZE*(entry_no-1),DIRENT_SIZE);
+      			existing_entry.node_num = entry->node_num;
+			writeblock(existing_blk,(char *)&existing_entry,DIRENT_SIZE*(entry_no-1),DIRENT_SIZE);
       			return 1;
     		} else {
       			errno = EEXIST;
@@ -37,7 +37,7 @@ int dir_add(struct node *dirnode, struct direntry *entry, int replace, int *adde
 	
 	cur_node.vstat.st_nlink++; //write this back to disk when new entry is written
 	
-	if(S_ISDIR(cur_node->vstat.st_mode)) 
+	if(S_ISDIR(cur_node.vstat.st_mode)) 
 	{
 		dirnode->vstat.st_nlink++;
 		//write this back to disk when new entry is written	
@@ -56,9 +56,9 @@ int dir_add(struct node *dirnode, struct direntry *entry, int replace, int *adde
 			errno =  EIO;
 			return 0;
 		}
-		ent_num = 0;
-		for(index=0;index<(int)ceil(MAX_DIRENTRY/(float)8);index++)
-		{	bit_no=128;
+		int ent_num = 0;
+		for(int index=0;index<(int)ceil(MAX_DIRENTRY/(float)8);index++)
+		{	unsigned char bit_no=128;
 			for(int bit=0;bit<8;bit++)
 			{	++ent_num;
 				if(!(bit_no & bitmap[index]))
@@ -80,7 +80,7 @@ int dir_add(struct node *dirnode, struct direntry *entry, int replace, int *adde
 						return 0;
 					}
 					//write parent Inode - if it is a directory
-					if(S_ISDIR(cur_node->vstat.st_mode)) 
+					if(S_ISDIR(cur_node.vstat.st_mode)) 
 					{	if(writeinode(dirnode->vstat.st_ino,dirnode)<0) //check with parameters
 						{
 							errno = EIO;
@@ -107,7 +107,7 @@ int dir_add(struct node *dirnode, struct direntry *entry, int replace, int *adde
 		return 0;
 	}
 		//write direntry and bitmap
-	for(index=0;index<(int)ceil(MAX_DIRENTRY/(float)8);index++)
+	for(int index=0;index<(int)ceil(MAX_DIRENTRY/(float)8);index++)
 		bitmap[index]=0;
 	bitmap[0] |= 128;
 	if(writeblock(bnum,(char *)entry,0,DIRENT_SIZE)!=DIRENT_SIZE)
@@ -127,8 +127,10 @@ int dir_add(struct node *dirnode, struct direntry *entry, int replace, int *adde
 		return 0;
 	}
 	//write parent Inode 
-	if(S_ISDIR(cur_node->vstat.st_mode)) 
-	{	if(writeinode(dirnode->vstat.st_ino,dirnode)<0) //check with parameters
+	if(S_ISDIR(cur_node.vstat.st_mode)) 
+	{	
+		//printf("%lu\n",dirnode->vstat.st_ino);
+		if(writeinode(dirnode->vstat.st_ino,dirnode)<0) //check with parameters
 		{
 			errno = EIO;
 			return 0;

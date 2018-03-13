@@ -52,10 +52,10 @@ struct disk_block{
 	int next_block;
 };
 static int opendisk(void){
-	static int fd;
-	fd=open("the_fs",O_RDWR|O_CREAT|O_EXCL);
+	//static int fd;
+	fd=open("the_fs",O_RDWR|O_CREAT|O_EXCL,0777);
 	if(fd<0){
-		fd=open("the_fs",O_RDWR);
+		fd=open("the_fs",O_RDWR,0644);
 		if(fd<0)
 			exit(4);
 		char buf[9];
@@ -65,7 +65,7 @@ static int opendisk(void){
 			exit(4);
 		}
 		else{
-			return fd;		
+			return 1;		
 		}
 	}
 	else{
@@ -92,18 +92,25 @@ static int opendisk(void){
 		// 2 super blocks written,one at end,one at beginning	
 		lseek(fd,0,SEEK_SET);
 		//lseek(fd,8,SEEK_SET);
-		return fd;
+		return 0;
 	}
 }
 char getblocktype(int block_no){ //function to know what kind of block it is, i.e. Inode,directory,data
+	fd=open("/home/ajvm/Desktop/fuse_ork/pefs_fuse/the_fs",O_RDWR);
+	if(fd<0)
+		perror("open");
 	struct disk_block temp; //temporary storage
 	pthread_mutex_lock(&lock); //get a lock on the read and write from file
 	lseek(fd,BLOCKSIZE*(block_no+2)-sizeof(struct disk_block),SEEK_SET); //move to where the block info is stored
 	read(fd,(char *)&temp,sizeof(struct disk_block));	//read from that location
 	pthread_mutex_unlock(&lock); //give up the lock on the file read/write
+	close(fd);	
 	return temp.type; //return the type of the block
 }
 int readblock(int block_no,char *data,int offset,size_t bytes){ //function that reads from a block. Not much error handling done
+	fd=open("/home/ajvm/Desktop/fuse_ork/pefs_fuse/the_fs",O_RDWR);
+	if(fd<0)
+		perror("open");	
 	int read_done;	//how many bytes read done
 	pthread_mutex_lock(&lock); //get a lock on file read/write
 	lseek(fd,(BLOCKSIZE*(block_no+1))+offset,SEEK_SET);	//move to beginning of block
@@ -112,10 +119,16 @@ int readblock(int block_no,char *data,int offset,size_t bytes){ //function that 
 	else
 		read_done=read(fd,data,bytes);
 	pthread_mutex_unlock(&lock); //give up the lock on file read/write
+	close(fd);
+	if(read_done<0)
+		perror("read");
 	return read_done; //return how many bytes have been read
 }
 int writeblock(int block_no,char *data,int offset,size_t bytes){ //function that writes to a block, Not much error handling done
 	int write_done;	//how many bytes write done
+	fd=open("/home/ajvm/Desktop/fuse_ork/pefs_fuse/the_fs",O_RDWR);	
+	if(fd<0)
+		perror("open");	
 	pthread_mutex_lock(&lock);	//get a lock on file read/write
 	lseek(fd,(BLOCKSIZE*(block_no+1))+offset,SEEK_SET);	//move to beginning of the block
 	if(offset+bytes > BLOCKSIZE-sizeof(struct disk_block)) //check if size of what is given to this function should not exceed block
@@ -123,14 +136,21 @@ int writeblock(int block_no,char *data,int offset,size_t bytes){ //function that
 	else
 		write_done=write(fd,data,bytes);
 	pthread_mutex_unlock(&lock); //give up lock on file read/write
+	close(fd);
+	if(write_done<0)
+		perror("read");
 	return write_done; //return how many bytes have been written
 }
 int get_next_block(int block_no,int nxorpr){ //function to get next and prev block numbers
 	struct disk_block temp; //block info buffer
+	fd=open("/home/ajvm/Desktop/fuse_ork/pefs_fuse/the_fs",O_RDWR);	
+	if(fd<0)
+		perror("open");	
 	pthread_mutex_lock(&lock); //get a lock on file read/write
 	lseek(fd,BLOCKSIZE*(block_no+2)-sizeof(struct disk_block),SEEK_SET); //move to block info
 	read(fd,(char *)&temp,sizeof(struct disk_block)); //read the block info
 	pthread_mutex_unlock(&lock); //give up lock on file read/write
+	close(fd);	
 	if(nxorpr==0)	//if 0,prev; if 1,next : Replace with #define or enum?
 		return temp.prev_block; 
 	else if(nxorpr==1)
@@ -142,11 +162,17 @@ int reqblock(int block_no,char type){ //function to request a block
 	int free_b;
 	int prev=-1;
 	int next=-1;
+	fd=open("the_fs",O_RDWR);
+	if(fd<0)
+		perror("open");	
 	pthread_mutex_lock(&lock); //get a lock on file read/write
 	lseek(fd,8+2046,SEEK_SET); //go to super block and get the number of free blocks
 	read(fd,(char *)&free_b,sizeof(int));
-	if(free_b==0)
+	if(free_b==0){
+		pthread_mutex_unlock(&lock);
+		free(fd);
 		return -1;	//if no free blocks,return an error?
+	}	
 	lseek(fd,8,SEEK_SET); //go to bitmap
 	for(i=0;i<2046;i++){ //go through bitmap one by one and check which block is free
 		read(fd,(char *)&buf,1);
@@ -161,6 +187,7 @@ int reqblock(int block_no,char type){ //function to request a block
 	}
 	if(i==2046){
 		pthread_mutex_unlock(&lock); //should never come here
+		close(fd);		
 		return -1; //why? because if this happens free_b should be zero,but it's not. Crash the filesystem here. Superblock is corrupt.
 	}
 	lseek(fd,8+2046,SEEK_SET); //update the number of free blocks
@@ -184,6 +211,7 @@ int reqblock(int block_no,char type){ //function to request a block
 	temp.next_block=-1; //no next block
 	write(fd,(char *)&temp,sizeof(struct disk_block)); //write changes to block info
 	pthread_mutex_unlock(&lock); //give up lock on file read/write
+	close(fd);	
 	return i; //return block number allocated
 }
 int relblock(int block_no){ //function to release a block assigned to you
@@ -193,6 +221,9 @@ int relblock(int block_no){ //function to release a block assigned to you
 	struct disk_block temp,temp1;
 	if(block_no<0 && block_no >2046) //can't release a block that doesn't exist
 		return -1;
+	fd=open("/home/ajvm/Desktop/fuse_ork/pefs_fuse/the_fs",O_RDWR);
+	if(fd<0)
+		perror("open");	
 	pthread_mutex_lock(&lock); //get a lock on file read/write
 	lseek(fd,8+block_no,SEEK_SET); //move to superblock's bitmap
 	write(fd,"0",1); //write 0 to indicate block is free
@@ -222,6 +253,7 @@ int relblock(int block_no){ //function to release a block assigned to you
 	lseek(fd,-BLOCKSIZE+8+2046,SEEK_END); //move to free block number
 	write(fd,(char *)&free_b,sizeof(int)); //write changes
 	pthread_mutex_unlock(&lock); //give up lock on file read/write
+	close(fd);	
 	return 0; //successful release of block
 }
 struct inode_block{ //inode block structure
@@ -236,7 +268,7 @@ int writeinode(ino_t inode_no,struct node inode){ //function to write an inode t
 	inode_no=inode_no/10000; //shift to get the node_in_block
 	int node_in_block=inode_no%100; //get the node_in_block
 	if(node_in_block > 24) //if the node_in_block doesn't exist, return error
-		return -1;
+		return -2;
 	struct inode_block inode_table; //complete inode block
 	readblock(block_no,(char *)&inode_table,0,sizeof(struct inode_block)); //read the whole block at once
 	//inode=(struct node *)(malloc(sizeof(struct node))); //make some memory on to point the result to
@@ -1043,17 +1075,28 @@ static struct fuse_operations ourfs_oper ={
 int main(int argc, char *argv[]){
   // Initialize root directory
 	struct node *root = malloc(sizeof(struct node));
-
 	memset(root, 0, sizeof(struct node));
-	initstat(root, S_IFDIR | 0755);
-	root->vstat.st_uid = getuid();
-	root->vstat.st_gid = getgid();
-	int fd=opendisk();
+	//initstat(root, S_IFDIR | 0755);
+	//root->vstat.st_uid = getuid();
+	//root->vstat.st_gid = getgid();
+	int status=opendisk();
+	if(status){
+		getinode(0,&root);
+	}
+	else{
+		initstat(root, S_IFDIR | 0755);
+		root->vstat.st_uid = getuid();
+		root->vstat.st_gid = getgid();
+		root->data = -1;
+		reqblock(-1,'i');
+		root->vstat.st_ino=reqinode();
+		writeinode(root->vstat.st_ino,*root);
+	}
   // No entries
-	root->data = NULL;
-
   // Set root directory of filesystem
 	our_fs.root = root;
 	umask(0);
+	close(fd);
+	printf("Done\n");
 	return fuse_main(argc, argv, &ourfs_oper, NULL);
 }
