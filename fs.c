@@ -53,9 +53,9 @@ struct disk_block{
 };
 static int opendisk(void){
 	//static int fd;
-	fd=open("/home/ajvm/Desktop/fuse_ork/ak/the_fs",O_RDWR|O_CREAT|O_EXCL,0777);
+	fd=open("/home/anusha/FileSystem/fuse-3.2.1/build/Phase2/pefs_fuse-ak/the_fs",O_RDWR|O_CREAT|O_EXCL,0777);
 	if(fd<0){
-		fd=open("/home/ajvm/Desktop/fuse_ork/ak/the_fs",O_RDWR,0644);
+		fd=open("/home/anusha/FileSystem/fuse-3.2.1/build/Phase2/pefs_fuse-ak/the_fs",O_RDWR,0644);
 		if(fd<0)
 			exit(4);
 		char buf[9];
@@ -96,7 +96,7 @@ static int opendisk(void){
 	}
 }
 char getblocktype(int block_no){ //function to know what kind of block it is, i.e. Inode,directory,data
-	fd=open("/home/ajvm/Desktop/fuse_ork/ak/the_fs",O_RDWR);
+	fd=open("/home/anusha/FileSystem/fuse-3.2.1/build/Phase2/pefs_fuse-ak/the_fs",O_RDWR);
 	if(fd<0)
 		perror("open");
 	struct disk_block temp; //temporary storage
@@ -108,7 +108,7 @@ char getblocktype(int block_no){ //function to know what kind of block it is, i.
 	return temp.type; //return the type of the block
 }
 int readblock(int block_no,char *data,int offset,size_t bytes){ //function that reads from a block. Not much error handling done
-	fd=open("/home/ajvm/Desktop/fuse_ork/ak/the_fs",O_RDWR);
+	fd=open("/home/anusha/FileSystem/fuse-3.2.1/build/Phase2/pefs_fuse-ak/the_fs",O_RDWR);
 	if(fd<0)
 		perror("open");	
 	int read_done;	//how many bytes read done
@@ -126,7 +126,7 @@ int readblock(int block_no,char *data,int offset,size_t bytes){ //function that 
 }
 int writeblock(int block_no,char *data,int offset,size_t bytes){ //function that writes to a block, Not much error handling done
 	int write_done;	//how many bytes write done
-	fd=open("/home/ajvm/Desktop/fuse_ork/ak/the_fs",O_RDWR);	
+	fd=open("/home/anusha/FileSystem/fuse-3.2.1/build/Phase2/pefs_fuse-ak/the_fs",O_RDWR);	
 	if(fd<0)
 		perror("open");	
 	pthread_mutex_lock(&lock);	//get a lock on file read/write
@@ -143,7 +143,7 @@ int writeblock(int block_no,char *data,int offset,size_t bytes){ //function that
 }
 int get_next_block(int block_no,int nxorpr){ //function to get next and prev block numbers
 	struct disk_block temp; //block info buffer
-	fd=open("/home/ajvm/Desktop/fuse_ork/ak/the_fs",O_RDWR);	
+	fd=open("/home/anusha/FileSystem/fuse-3.2.1/build/Phase2/pefs_fuse-ak/the_fs",O_RDWR);	
 	if(fd<0)
 		perror("open");	
 	pthread_mutex_lock(&lock); //get a lock on file read/write
@@ -162,7 +162,7 @@ int reqblock(int block_no,char type){ //function to request a block
 	int free_b;
 	int prev=-1;
 	int next=-1;
-	fd=open("/home/ajvm/Desktop/fuse_ork/ak/the_fs",O_RDWR);
+	fd=open("/home/anusha/FileSystem/fuse-3.2.1/build/Phase2/pefs_fuse-ak/the_fs",O_RDWR);
 	if(fd<0)
 		perror("open");	
 	pthread_mutex_lock(&lock); //get a lock on file read/write
@@ -221,7 +221,7 @@ int relblock(int block_no){ //function to release a block assigned to you
 	struct disk_block temp,temp1;
 	if(block_no<0 && block_no >2046) //can't release a block that doesn't exist
 		return -1;
-	fd=open("/home/ajvm/Desktop/fuse_ork/ak/the_fs",O_RDWR);
+	fd=open("/home/anusha/FileSystem/fuse-3.2.1/build/Phase2/pefs_fuse-ak/the_fs",O_RDWR);
 	if(fd<0)
 		perror("open");	
 	pthread_mutex_lock(&lock); //get a lock on file read/write
@@ -695,10 +695,10 @@ static int ourfs_unlink(const char *path){
 
 static int ourfs_rmdir(const char *path){
 	char *dirpath, *name;
+	struct node dir, node;
+
 	char bitmap[2];
 	int empty_flag = 1;
-	struct node dir, node;
-	char bit_no=0;
 	int index;
   // Find inode
 	if(!getNodeByPath(path, &our_fs, &node)){
@@ -710,26 +710,30 @@ static int ourfs_rmdir(const char *path){
 
   // Check if directory is empty
   // read the bitmap of that block and check if all the entries are 0 
-	int bnum = node.data;
-	while(1){
-		if(readblock(bnum, bitmap, MAX_DIRENTRY*DIRENT_SIZE,(int)ceil(MAX_DIRENTRY/(float)8))!= (int)ceil(MAX_DIRENTRY/(float)8))
-			{	
-				return -errno;
-			}
-		
-		for(index=0;index < 2;index++)
-			{	
-				if((bit_no & bitmap[index])!=0)
-					{empty_flag = 0;
-					 return -ENOTEMPTY; 
-					}
+	if(node.data==-1)
+	{	if(relinode(node.vstat.st_ino) != 0)
+			return -errno;	
+		return 0;
+	}
 
-				
-			}
-			bnum=get_next_block(bnum,1);
-			if(bnum==-1)	//There are no more blocks allocated for this directory.
-				break;
-		 }
+	int bnum = node.data;
+
+	int flag =0;
+	while(bnum !=-1){
+		if(readblock(bnum, bitmap, MAX_DIRENTRY*DIRENT_SIZE,(int)ceil(MAX_DIRENTRY/(float)8))!= (int)ceil(MAX_DIRENTRY/(float)8))
+		{	
+				return -errno;
+		}
+		for(index=0;index < 2;index++)
+		{	if(bitmap[index]!=0)
+			{	empty_flag = 0;
+				return -ENOTEMPTY; 
+			}	
+		}
+		if(empty_flag)
+			relblock(bnum);
+		bnum=get_next_block(bnum,1);
+	}
 	
 	dirpath = makeDirnameSafe(path);
 
@@ -740,8 +744,8 @@ static int ourfs_rmdir(const char *path){
 	}
 
 	free(dirpath);
-
-  name = makeBasenameSafe(path);
+	
+	name = makeBasenameSafe(path);
 
   // Find directory entry in parent
 	if(!dir_remove(&dir, name)){
@@ -750,6 +754,7 @@ static int ourfs_rmdir(const char *path){
 	}
 
 	free(name);
+
 	if(relinode(node.vstat.st_ino) != 0)
 		return -errno;
 	return 0;
@@ -1018,34 +1023,84 @@ static int ourfs_write(const char *path, const char *buf, size_t size, off_t off
   // Calculate number of required blocks
 	blkcnt_t req_blocks = (offset + size + (BLOCKSIZE-sizeof(struct disk_block))- 1) / (BLOCKSIZE-sizeof(struct disk_block));
 
+	printf("blocks:%d\n",req_blocks);
+
+	int max_data = (BLOCKSIZE-sizeof(struct disk_block));
+	int count = (int)ceil(node->vstat.st_size/(float)max_data);
+
+	int bnum = node->data;
+
 	if(node->vstat.st_blocks < req_blocks){
     // Allocate more memory, get the next block
-
-		newdata = malloc(req_blocks * BLOCKSIZE);
-		if(!newdata){
-			return -ENOMEM;
-		}
-
-    // Copy old contents
-		if(node->data != -1){
-			if(readblock(node->data,newdata,0,node->vstat.st_size) != node->vstat.st_size)
-				return -errno;
-		}
-
+		if(node->vstat.st_blocks==0){	
     // Update allocation information
+			
+			node->data = reqblock(-1,'d');
+			count = req_blocks - 1;
+			printf("allocating :%d blocks\n",count);
+			bnum = node->data;
+			while(count!=0)
+			{	bnum=reqblock(bnum,'d');
+				count--;
+			}
+			printf("last allocated block :%d block\n",bnum);
+		}
+		else{
+			count = node->vstat.st_blocks;
+			bnum = node->data;
+			while(count !=1)
+			{	bnum = get_next_block(bnum,1);
+				count--;
+			}
+			printf("last bnum:%d\n",bnum);
+			count = req_blocks - node->vstat.st_blocks;
+			printf("extra:%d blocks\n",count);
+			while(count!=0)
+			{
+				bnum=reqblock(bnum,'d');
+				count--;
+			}
+		}		
 		node->vstat.st_blocks = req_blocks;
 	}
 
   // Write new contents from buf to newdata
-	memcpy(newdata + offset, buf, size);
+	//memcpy(newdata + offset, buf, size);
 
+	count = (int)ceil(offset/(float)max_data);
+	printf("count:%d\n",count);
+	bnum = node->data;
+	while(count > 1)
+	{	bnum = get_next_block(bnum,1);
+		count--;
+	}
+
+	count = (int)ceil(offset/(float)max_data);
+
+	int new_offset=offset;
+	if(count>0)
+		new_offset = offset - ((count-1)*max_data);
+	int size_left=size;
+	int i=0;
+	int written;
+	while(size_left!=0)
+	{	printf("size_left:%d\n",size_left);
+		written = writeblock(bnum,buf+i,new_offset,size_left);
+		printf("written %d bytes to %d block\n",written,bnum);
+		size_left-= written;
+		if(size_left!=0)
+		{	bnum = get_next_block(bnum,1);
+			new_offset=0;
+			i += written;
+		}
+	}
+
+	printf("written\n");
   // Update file size if necessary
 	off_t minsize = offset + size;
 	if(minsize > node->vstat.st_size){
 		node->vstat.st_size = minsize;
 	}
-	if(writeblock(node->data,newdata,0,minsize) != minsize)
-			return -errno;
 
 	updateTime(node, U_CTIME | U_MTIME);
 	if(writeinode(node->vstat.st_ino , node) != 0)
