@@ -921,8 +921,8 @@ static int ourfs_truncate(const char *path, off_t size){
 }
 
 static int ourfs_open(const char *path, struct fuse_file_info *fi){	
-	struct node node;
-	if(!getNodeByPath(path, &our_fs, &node)){
+	struct node *node_new=malloc(sizeof(struct node));
+	if(!getNodeByPath(path, &our_fs, node)){
 		return -errno;
 	}
 	if(!S_ISREG(node.vstat.st_mode)){
@@ -937,13 +937,13 @@ static int ourfs_open(const char *path, struct fuse_file_info *fi){
   // The "file handle" is a pointer to a struct we use to keep track of the inode and the
   // flags passed to open().
 	struct filehandle *fh = malloc(sizeof(struct filehandle));
-	fh->node    = &node;
+	fh->node    = node_new;
 	fh->o_flags = fi->flags;
 	fi->fh = (uint64_t) fh;
 
 	node.fd_count++;
-	if(writeinode(node.vstat.st_ino,&node) != 0)
-		return -errno;
+	//if(writeinode(node.vstat.st_ino,node) != 0)
+	//	return -errno;
 	return 0;
 }
 
@@ -966,9 +966,15 @@ static int ourfs_read(const char *path, char *buf, size_t size, off_t offset, st
 
   // Calculate number of bytes to copy
 	size_t avail = filesize - offset;
-	size_t n = (size < avail) ? size : avail;
-
-  // Copy file contents
+	size_t n = (size < avail) ? size : avail; //n bytes to read? but they might be in different blocks
+	int block_no= offset/(BLOCKSIZE+1-(sizeof(struct disk block)));//which block to move to?
+	int read_block=node->data;	
+	while(block_no!=0){
+		read_block=get_next_block(read_block);
+		block_no--;
+	}
+	
+	// Copy file contents
 	//readblock and copy the contents to a buffer
 	if(readblock(node->data,buf,offset,n)!= n)
 			{	//set errno for I/O ERROR
