@@ -50,12 +50,12 @@ struct disk_block{
 	char type;
 	int prev_block;
 	int next_block;
-};
+}__attribute__((packed));
 static int opendisk(void){
 	//static int fd;
-	fd=open("/home/anusha/FileSystem/fuse-3.2.1/build/Phase2/pefs_fuse-ak/the_fs",O_RDWR|O_CREAT|O_EXCL,0777);
+	fd=open("/home/ajvm/Desktop/fuse_ork/ak/the_fs",O_RDWR|O_CREAT|O_EXCL,0777);
 	if(fd<0){
-		fd=open("/home/anusha/FileSystem/fuse-3.2.1/build/Phase2/pefs_fuse-ak/the_fs",O_RDWR,0644);
+		fd=open("/home/ajvm/Desktop/fuse_ork/ak/the_fs",O_RDWR,0644);
 		if(fd<0)
 			exit(4);
 		char buf[9];
@@ -96,7 +96,7 @@ static int opendisk(void){
 	}
 }
 char getblocktype(int block_no){ //function to know what kind of block it is, i.e. Inode,directory,data
-	fd=open("/home/anusha/FileSystem/fuse-3.2.1/build/Phase2/pefs_fuse-ak/the_fs",O_RDWR);
+	fd=open("/home/ajvm/Desktop/fuse_ork/ak/the_fs",O_RDWR);
 	if(fd<0)
 		perror("open");
 	struct disk_block temp; //temporary storage
@@ -108,14 +108,14 @@ char getblocktype(int block_no){ //function to know what kind of block it is, i.
 	return temp.type; //return the type of the block
 }
 int readblock(int block_no,char *data,int offset,size_t bytes){ //function that reads from a block. Not much error handling done
-	fd=open("/home/anusha/FileSystem/fuse-3.2.1/build/Phase2/pefs_fuse-ak/the_fs",O_RDWR);
+	fd=open("/home/ajvm/Desktop/fuse_ork/ak/the_fs",O_RDWR);
 	if(fd<0)
 		perror("open");	
 	int read_done;	//how many bytes read done
 	pthread_mutex_lock(&lock); //get a lock on file read/write
 	lseek(fd,(BLOCKSIZE*(block_no+1))+offset,SEEK_SET);	//move to beginning of block
 	if(offset+bytes > BLOCKSIZE-sizeof(struct disk_block)) //check if size of what is given to this function should not exceed block
-		read_done=read(fd,data,(bytes-(BLOCKSIZE-(offset+bytes))));
+		read_done=read(fd,data,(BLOCKSIZE-sizeof(struct disk_block)-offset));
 	else
 		read_done=read(fd,data,bytes);
 	pthread_mutex_unlock(&lock); //give up the lock on file read/write
@@ -126,15 +126,18 @@ int readblock(int block_no,char *data,int offset,size_t bytes){ //function that 
 }
 int writeblock(int block_no,char *data,int offset,size_t bytes){ //function that writes to a block, Not much error handling done
 	int write_done;	//how many bytes write done
-	fd=open("/home/anusha/FileSystem/fuse-3.2.1/build/Phase2/pefs_fuse-ak/the_fs",O_RDWR);	
+	if(offset>BLOCKSIZE-sizeof(struct disk_block))
+		return -1;
+	fd=open("/home/ajvm/Desktop/fuse_ork/ak/the_fs",O_RDWR);	
 	if(fd<0)
 		perror("open");	
 	pthread_mutex_lock(&lock);	//get a lock on file read/write
 	lseek(fd,(BLOCKSIZE*(block_no+1))+offset,SEEK_SET);	//move to beginning of the block
 	if(offset+bytes > BLOCKSIZE-sizeof(struct disk_block)) //check if size of what is given to this function should not exceed block
-		write_done=write(fd,data,(bytes-(BLOCKSIZE-(offset+bytes))));
+		write_done=write(fd,data,(BLOCKSIZE-sizeof(struct disk_block)-offset));
 	else
 		write_done=write(fd,data,bytes);
+	int test =BLOCKSIZE-sizeof(struct disk_block);
 	pthread_mutex_unlock(&lock); //give up lock on file read/write
 	close(fd);
 	if(write_done<0)
@@ -143,7 +146,7 @@ int writeblock(int block_no,char *data,int offset,size_t bytes){ //function that
 }
 int get_next_block(int block_no,int nxorpr){ //function to get next and prev block numbers
 	struct disk_block temp; //block info buffer
-	fd=open("/home/anusha/FileSystem/fuse-3.2.1/build/Phase2/pefs_fuse-ak/the_fs",O_RDWR);	
+	fd=open("/home/ajvm/Desktop/fuse_ork/ak/the_fs",O_RDWR);	
 	if(fd<0)
 		perror("open");	
 	pthread_mutex_lock(&lock); //get a lock on file read/write
@@ -162,7 +165,7 @@ int reqblock(int block_no,char type){ //function to request a block
 	int free_b;
 	int prev=-1;
 	int next=-1;
-	fd=open("/home/anusha/FileSystem/fuse-3.2.1/build/Phase2/pefs_fuse-ak/the_fs",O_RDWR);
+	fd=open("/home/ajvm/Desktop/fuse_ork/ak/the_fs",O_RDWR);
 	if(fd<0)
 		perror("open");	
 	pthread_mutex_lock(&lock); //get a lock on file read/write
@@ -221,7 +224,7 @@ int relblock(int block_no){ //function to release a block assigned to you
 	struct disk_block temp,temp1;
 	if(block_no<0 && block_no >2046) //can't release a block that doesn't exist
 		return -1;
-	fd=open("/home/anusha/FileSystem/fuse-3.2.1/build/Phase2/pefs_fuse-ak/the_fs",O_RDWR);
+	fd=open("/home/ajvm/Desktop/fuse_ork/ak/the_fs",O_RDWR);
 	if(fd<0)
 		perror("open");	
 	pthread_mutex_lock(&lock); //get a lock on file read/write
@@ -260,7 +263,7 @@ struct inode_block{ //inode block structure
 	struct node inodes[25]; //inodes
 	char bitmap[25]; //bitmap
 	int free_inode_no; //number of inodes that can be added
-};
+}__attribute__((packed));
 int writeinode(ino_t inode_no,struct node *inode){ //function to write an inode to file
 	int block_no=inode_no%10000; //which block is the inode present in?
 	if(getblocktype(block_no)!='i') //make sure  the block is a inode block
@@ -1196,6 +1199,8 @@ int main(int argc, char *argv[]){
 	}
   // No entries
   // Set root directory of filesystem
+	char temp[4400];
+	//writeblock(0,&temp,0,4400);
 	printf("root->data:%d\n",root->data);
 	our_fs.root = root;
 	umask(0);
