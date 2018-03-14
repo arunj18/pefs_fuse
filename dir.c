@@ -9,6 +9,19 @@ int dir_add(struct node *dirnode, struct direntry *entry, int replace, int *adde
 {
   	int bnum = dirnode->data;
 	int prev;
+
+	if(bnum == -1)
+	{
+		
+		bnum = reqblock(-1,'f');
+		int off = MAX_DIRENTRY*DIRENT_SIZE;
+		char bmap[2]={'\0'};
+		writeblock(bnum,bmap,off,2);
+		dirnode->data = bnum;
+		writeinode(dirnode->vstat.st_ino,dirnode);
+		printf("first block: %d\n",bnum);
+	}
+
   	struct direntry existing_entry;
 
   	int existing_blk;
@@ -28,9 +41,11 @@ int dir_add(struct node *dirnode, struct direntry *entry, int replace, int *adde
 	//new entry - Increase the link count
   	ino_t inode = entry->node_num; //inode is allocated
 	
+	
 	struct node cur_node;
 	if(getinode(inode,&cur_node)<0)
 	{
+		printf("Inode not found\n");
 		errno =  EIO; //set errno num
 		return 0;
 	}
@@ -53,6 +68,7 @@ int dir_add(struct node *dirnode, struct direntry *entry, int replace, int *adde
 	{
 		if(readblock(bnum,bitmap,offset,(int)ceil(MAX_DIRENTRY/(float)8))!=(int)ceil(MAX_DIRENTRY/(float)8))
 		{	//set errno for I/O ERROR
+			printf("Coudn't find bitmap\n");
 			errno =  EIO;
 			return 0;
 		}
@@ -64,7 +80,8 @@ int dir_add(struct node *dirnode, struct direntry *entry, int replace, int *adde
 				if(!(bit_no & bitmap[index]))
 				{	//is this cast required??
 					if(writeblock(bnum,(char *)entry,DIRENT_SIZE*(ent_num-1),DIRENT_SIZE)!=DIRENT_SIZE)
-					{	errno =  EIO; //I/O error;
+					{	printf("Coudn't write directory entry to %d block\n",bnum);
+						errno =  EIO; //I/O error;
 						return 0;
 					}
 					//write its Inode

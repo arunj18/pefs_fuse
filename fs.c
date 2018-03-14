@@ -53,9 +53,9 @@ struct disk_block{
 };
 static int opendisk(void){
 	//static int fd;
-	fd=open("the_fs",O_RDWR|O_CREAT|O_EXCL,0777);
+	fd=open("/home/anusha/FileSystem/fuse-3.2.1/build/Phase2/pefs_fuse-ak/the_fs",O_RDWR|O_CREAT|O_EXCL,0777);
 	if(fd<0){
-		fd=open("the_fs",O_RDWR,0644);
+		fd=open("/home/anusha/FileSystem/fuse-3.2.1/build/Phase2/pefs_fuse-ak/the_fs",O_RDWR,0644);
 		if(fd<0)
 			exit(4);
 		char buf[9];
@@ -96,7 +96,7 @@ static int opendisk(void){
 	}
 }
 char getblocktype(int block_no){ //function to know what kind of block it is, i.e. Inode,directory,data
-	fd=open("/home/ajvm/Desktop/fuse_ork/pefs_fuse/the_fs",O_RDWR);
+	fd=open("/home/anusha/FileSystem/fuse-3.2.1/build/Phase2/pefs_fuse-ak/the_fs",O_RDWR);
 	if(fd<0)
 		perror("open");
 	struct disk_block temp; //temporary storage
@@ -108,7 +108,7 @@ char getblocktype(int block_no){ //function to know what kind of block it is, i.
 	return temp.type; //return the type of the block
 }
 int readblock(int block_no,char *data,int offset,size_t bytes){ //function that reads from a block. Not much error handling done
-	fd=open("/home/ajvm/Desktop/fuse_ork/pefs_fuse/the_fs",O_RDWR);
+	fd=open("/home/anusha/FileSystem/fuse-3.2.1/build/Phase2/pefs_fuse-ak/the_fs",O_RDWR);
 	if(fd<0)
 		perror("open");	
 	int read_done;	//how many bytes read done
@@ -126,7 +126,7 @@ int readblock(int block_no,char *data,int offset,size_t bytes){ //function that 
 }
 int writeblock(int block_no,char *data,int offset,size_t bytes){ //function that writes to a block, Not much error handling done
 	int write_done;	//how many bytes write done
-	fd=open("/home/ajvm/Desktop/fuse_ork/pefs_fuse/the_fs",O_RDWR);	
+	fd=open("/home/anusha/FileSystem/fuse-3.2.1/build/Phase2/pefs_fuse-ak/the_fs",O_RDWR);	
 	if(fd<0)
 		perror("open");	
 	pthread_mutex_lock(&lock);	//get a lock on file read/write
@@ -143,7 +143,7 @@ int writeblock(int block_no,char *data,int offset,size_t bytes){ //function that
 }
 int get_next_block(int block_no,int nxorpr){ //function to get next and prev block numbers
 	struct disk_block temp; //block info buffer
-	fd=open("/home/ajvm/Desktop/fuse_ork/pefs_fuse/the_fs",O_RDWR);	
+	fd=open("/home/anusha/FileSystem/fuse-3.2.1/build/Phase2/pefs_fuse-ak/the_fs",O_RDWR);	
 	if(fd<0)
 		perror("open");	
 	pthread_mutex_lock(&lock); //get a lock on file read/write
@@ -162,7 +162,7 @@ int reqblock(int block_no,char type){ //function to request a block
 	int free_b;
 	int prev=-1;
 	int next=-1;
-	fd=open("the_fs",O_RDWR);
+	fd=open("/home/anusha/FileSystem/fuse-3.2.1/build/Phase2/pefs_fuse-ak/the_fs",O_RDWR);
 	if(fd<0)
 		perror("open");	
 	pthread_mutex_lock(&lock); //get a lock on file read/write
@@ -221,7 +221,7 @@ int relblock(int block_no){ //function to release a block assigned to you
 	struct disk_block temp,temp1;
 	if(block_no<0 && block_no >2046) //can't release a block that doesn't exist
 		return -1;
-	fd=open("/home/ajvm/Desktop/fuse_ork/pefs_fuse/the_fs",O_RDWR);
+	fd=open("/home/anusha/FileSystem/fuse-3.2.1/build/Phase2/pefs_fuse-ak/the_fs",O_RDWR);
 	if(fd<0)
 		perror("open");	
 	pthread_mutex_lock(&lock); //get a lock on file read/write
@@ -395,6 +395,8 @@ static int initstat(struct node *node,mode_t mode){
 
 //our_fs must have root node read into memory
 static int createEntry(const char *path, mode_t mode,struct node **node){
+
+	printf("createEntry :%s\n",path);
 	char *directorypath =makeDirnameSafe(path);
 
   // Find parent node
@@ -409,6 +411,7 @@ static int createEntry(const char *path, mode_t mode,struct node **node){
 
 	(*node)->vstat.st_ino = reqinode();
 
+	printf("New Inode no:%d\n",(*node)->vstat.st_ino);
 	if(!*node){
 		return -ENOMEM;
 	}
@@ -425,6 +428,8 @@ static int createEntry(const char *path, mode_t mode,struct node **node){
 	struct fuse_context *context =fuse_get_context();
 	(*node)->vstat.st_uid =context->uid;
   	(*node)->vstat.st_gid =context->gid;
+
+	writeinode((*node)->vstat.st_ino,**node);
 
   // Add to parent directory
 	if(!dir_add_alloc(&directory, makeBasenameSafe(path), *node, 0)){
@@ -464,6 +469,7 @@ static int ourfs_getattr(const char *path,struct stat *stbuffer){
 }
 
 static int ourfs_readlink(const char *path,char *buf,size_t size){
+
 	struct node node;
 	if(!getNodeByPath(path, &our_fs, &node)){
 		return -errno;
@@ -494,6 +500,7 @@ static int ourfs_readlink(const char *path,char *buf,size_t size){
 
 static int ourfs_readdir(const char *path,void *buf,fuse_fill_dir_t filler,off_t offset,struct fuse_file_info *fi){
 	
+	printf("readdir :%s\n",path);
 	struct node directory;
 	if(!getNodeByPath(path,&our_fs,&directory)){
 		return -errno;
@@ -515,7 +522,7 @@ static int ourfs_readdir(const char *path,void *buf,fuse_fill_dir_t filler,off_t
 	//problem adding . and .. to direntry table?
 
 	int dtab_bnum = directory.data;
-
+	//printf("%d\n",dtab_bnum);
 	int off = MAX_DIRENTRY*DIRENT_SIZE;
 	char bitmap[2];
 	int ent_num;
@@ -587,6 +594,7 @@ static int ourfs_mknod(const char *path, mode_t mode, dev_t rdev){
 
 //what should we do to set the directory entries to 0
 static int ourfs_mkdir(const char *path,mode_t mode){
+	printf("mkdir :%s\n",path);
 	struct node *node;
 	int res =createEntry(path, S_IFDIR | mode, &node);
 	if(res)
@@ -1081,7 +1089,8 @@ int main(int argc, char *argv[]){
 	//root->vstat.st_gid = getgid();
 	int status=opendisk();
 	if(status){
-		getinode(0,&root);
+		printf("There was a root\n");
+		getinode(0,root);
 	}
 	else{
 		initstat(root, S_IFDIR | 0755);
@@ -1094,6 +1103,7 @@ int main(int argc, char *argv[]){
 	}
   // No entries
   // Set root directory of filesystem
+	printf("root->data:%d\n",root->data);
 	our_fs.root = root;
 	umask(0);
 	close(fd);
