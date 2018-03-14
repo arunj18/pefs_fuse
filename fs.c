@@ -53,9 +53,9 @@ struct disk_block{
 };
 static int opendisk(void){
 	//static int fd;
-	fd=open("/home/anusha/FileSystem/fuse-3.2.1/build/Phase2/pefs_fuse-ak/the_fs",O_RDWR|O_CREAT|O_EXCL,0777);
+	fd=open("/home/ajvm/Desktop/fuse_ork/ak/the_fs",O_RDWR|O_CREAT|O_EXCL,0777);
 	if(fd<0){
-		fd=open("/home/anusha/FileSystem/fuse-3.2.1/build/Phase2/pefs_fuse-ak/the_fs",O_RDWR,0644);
+		fd=open("/home/ajvm/Desktop/fuse_ork/ak/the_fs",O_RDWR,0644);
 		if(fd<0)
 			exit(4);
 		char buf[9];
@@ -96,7 +96,7 @@ static int opendisk(void){
 	}
 }
 char getblocktype(int block_no){ //function to know what kind of block it is, i.e. Inode,directory,data
-	fd=open("/home/anusha/FileSystem/fuse-3.2.1/build/Phase2/pefs_fuse-ak/the_fs",O_RDWR);
+	fd=open("/home/ajvm/Desktop/fuse_ork/ak/the_fs",O_RDWR);
 	if(fd<0)
 		perror("open");
 	struct disk_block temp; //temporary storage
@@ -108,7 +108,7 @@ char getblocktype(int block_no){ //function to know what kind of block it is, i.
 	return temp.type; //return the type of the block
 }
 int readblock(int block_no,char *data,int offset,size_t bytes){ //function that reads from a block. Not much error handling done
-	fd=open("/home/anusha/FileSystem/fuse-3.2.1/build/Phase2/pefs_fuse-ak/the_fs",O_RDWR);
+	fd=open("/home/ajvm/Desktop/fuse_ork/ak/the_fs",O_RDWR);
 	if(fd<0)
 		perror("open");	
 	int read_done;	//how many bytes read done
@@ -126,7 +126,7 @@ int readblock(int block_no,char *data,int offset,size_t bytes){ //function that 
 }
 int writeblock(int block_no,char *data,int offset,size_t bytes){ //function that writes to a block, Not much error handling done
 	int write_done;	//how many bytes write done
-	fd=open("/home/anusha/FileSystem/fuse-3.2.1/build/Phase2/pefs_fuse-ak/the_fs",O_RDWR);	
+	fd=open("/home/ajvm/Desktop/fuse_ork/ak/the_fs",O_RDWR);	
 	if(fd<0)
 		perror("open");	
 	pthread_mutex_lock(&lock);	//get a lock on file read/write
@@ -143,7 +143,7 @@ int writeblock(int block_no,char *data,int offset,size_t bytes){ //function that
 }
 int get_next_block(int block_no,int nxorpr){ //function to get next and prev block numbers
 	struct disk_block temp; //block info buffer
-	fd=open("/home/anusha/FileSystem/fuse-3.2.1/build/Phase2/pefs_fuse-ak/the_fs",O_RDWR);	
+	fd=open("/home/ajvm/Desktop/fuse_ork/ak/the_fs",O_RDWR);	
 	if(fd<0)
 		perror("open");	
 	pthread_mutex_lock(&lock); //get a lock on file read/write
@@ -162,7 +162,7 @@ int reqblock(int block_no,char type){ //function to request a block
 	int free_b;
 	int prev=-1;
 	int next=-1;
-	fd=open("/home/anusha/FileSystem/fuse-3.2.1/build/Phase2/pefs_fuse-ak/the_fs",O_RDWR);
+	fd=open("/home/ajvm/Desktop/fuse_ork/ak/the_fs",O_RDWR);
 	if(fd<0)
 		perror("open");	
 	pthread_mutex_lock(&lock); //get a lock on file read/write
@@ -170,7 +170,7 @@ int reqblock(int block_no,char type){ //function to request a block
 	read(fd,(char *)&free_b,sizeof(int));
 	if(free_b==0){
 		pthread_mutex_unlock(&lock);
-		free(fd);
+		close(fd);
 		return -1;	//if no free blocks,return an error?
 	}	
 	lseek(fd,8,SEEK_SET); //go to bitmap
@@ -221,7 +221,7 @@ int relblock(int block_no){ //function to release a block assigned to you
 	struct disk_block temp,temp1;
 	if(block_no<0 && block_no >2046) //can't release a block that doesn't exist
 		return -1;
-	fd=open("/home/anusha/FileSystem/fuse-3.2.1/build/Phase2/pefs_fuse-ak/the_fs",O_RDWR);
+	fd=open("/home/ajvm/Desktop/fuse_ork/ak/the_fs",O_RDWR);
 	if(fd<0)
 		perror("open");	
 	pthread_mutex_lock(&lock); //get a lock on file read/write
@@ -261,7 +261,7 @@ struct inode_block{ //inode block structure
 	char bitmap[25]; //bitmap
 	int free_inode_no; //number of inodes that can be added
 };
-int writeinode(ino_t inode_no,struct node inode){ //function to write an inode to file
+int writeinode(ino_t inode_no,struct node *inode){ //function to write an inode to file
 	int block_no=inode_no%10000; //which block is the inode present in?
 	if(getblocktype(block_no)!='i') //make sure  the block is a inode block
 		return -1;
@@ -272,7 +272,7 @@ int writeinode(ino_t inode_no,struct node inode){ //function to write an inode t
 	struct inode_block inode_table; //complete inode block
 	readblock(block_no,(char *)&inode_table,0,sizeof(struct inode_block)); //read the whole block at once
 	//inode=(struct node *)(malloc(sizeof(struct node))); //make some memory on to point the result to
-	inode_table.inodes[node_in_block]=inode; //change inode in the inode table
+	inode_table.inodes[node_in_block]=*inode; //change inode in the inode table
 	writeblock(block_no,(char *)&inode_table,0,sizeof(struct inode_block)); //write the changed inode table back
 	return 0;
 }
@@ -431,10 +431,10 @@ static int createEntry(const char *path, mode_t mode,struct node **node){
 	(*node)->vstat.st_uid =context->uid;
   	(*node)->vstat.st_gid =context->gid;
 
-	writeinode((*node)->vstat.st_ino,**node);
+	writeinode((*node)->vstat.st_ino,*node);
 
   // Add to parent directory
-	if(ret ==2)
+	if(directory.vstat.st_ino==0)
 	{	if(!dir_add_alloc(our_fs.root, makeBasenameSafe(path), *node, 0)){
 			free(*node);
 			return -errno;
@@ -593,7 +593,7 @@ static int ourfs_mknod(const char *path, mode_t mode, dev_t rdev){
 		node->data = -1;
 		node->vstat.st_blocks = 0;
 		//writeinode because inode attributes are changed
-		if(writeinode(node->vstat.st_ino,*node) != 0)
+		if(writeinode(node->vstat.st_ino,node) != 0)
 			return -errno;
   	}
 	else{
@@ -615,7 +615,7 @@ static int ourfs_mkdir(const char *path,mode_t mode){
 	int offset = MAX_DIRENTRY*DIRENT_SIZE;
 	char bitmap[2]={'\0'};
 	writeblock(node->data,bitmap,offset,2);
-	writeinode(node->vstat.st_ino,*node);
+	writeinode(node->vstat.st_ino,node);
 	printf("mkdir done\n");
 	struct node root;
 	getinode(0,&root);
@@ -686,7 +686,7 @@ static int ourfs_unlink(const char *path){
 		else{
       // There are open file descriptors, schedule deletion
 			node.delete_on_close = 1;
-			if(writeinode(node.vstat.st_ino,node) != 0)
+			if(writeinode(node.vstat.st_ino,&node) != 0)
 				return -errno;
 		}
 	}
@@ -769,7 +769,7 @@ static int ourfs_symlink(const char *from, const char *to){
 				return -errno;
 			}
 	node->vstat.st_size = strlen(from);
-	if(writeinode(node->vstat.st_ino,*node) != 0)
+	if(writeinode(node->vstat.st_ino,node) != 0)
 		return -errno;
 	return 0;
 }
@@ -852,7 +852,7 @@ static int ourfs_chmod(const char *path, mode_t mode){
 
 	node.vstat.st_mode = (node.vstat.st_mode & ~mask) | (mode & mask);
 	updateTime(&node, U_CTIME);
-	if(writeinode(node.vstat.st_ino,node) != 0)
+	if(writeinode(node.vstat.st_ino,&node) != 0)
 		return -errno;
 	return 0;
 }
@@ -867,7 +867,7 @@ static int ourfs_chown(const char *path, uid_t uid, gid_t gid){
 	node.vstat.st_gid = gid;
 	updateTime(&node, U_CTIME);
 
-	if(writeinode(node.vstat.st_ino,node) != 0)
+	if(writeinode(node.vstat.st_ino,&node) != 0)
 		return -errno;
 	return 0;
 }
@@ -879,7 +879,7 @@ static int ourfs_utimens(const char *path, const struct timespec ts[2]){
 	}
 	node.vstat.st_atime = ts[0].tv_sec;
 	node.vstat.st_mtime = ts[1].tv_sec;
-	if(writeinode(node.vstat.st_ino,node) != 0)
+	if(writeinode(node.vstat.st_ino,&node) != 0)
 		return -errno;
 	return 0;
 }
@@ -915,7 +915,7 @@ static int ourfs_truncate(const char *path, off_t size){
   // Update file size
 	node.vstat.st_size = size;
 	node.vstat.st_blocks = newblkcnt;
-	if(writeinode(node.vstat.st_ino,node) != 0)
+	if(writeinode(node.vstat.st_ino,&node) != 0)
 		return -errno;
 	return 0;
 }
@@ -942,7 +942,7 @@ static int ourfs_open(const char *path, struct fuse_file_info *fi){
 	fi->fh = (uint64_t) fh;
 
 	node.fd_count++;
-	if(writeinode(node.vstat.st_ino,node) != 0)
+	if(writeinode(node.vstat.st_ino,&node) != 0)
 		return -errno;
 	return 0;
 }
@@ -976,7 +976,7 @@ static int ourfs_read(const char *path, char *buf, size_t size, off_t offset, st
 			}
 
 	updateTime(node, U_ATIME);
-	if(writeinode(node->vstat.st_ino,*node) != 0)
+	if(writeinode(node->vstat.st_ino,node) != 0)
 		return -errno;
 	return n;
 }
@@ -1025,7 +1025,7 @@ static int ourfs_write(const char *path, const char *buf, size_t size, off_t off
 			return -errno;
 
 	updateTime(node, U_CTIME | U_MTIME);
-	if(writeinode(node->vstat.st_ino , *node) != 0)
+	if(writeinode(node->vstat.st_ino , node) != 0)
 		return -errno;
 	return size;
 }
@@ -1114,7 +1114,7 @@ int main(int argc, char *argv[]){
 		root->data = -1;
 		reqblock(-1,'i');
 		root->vstat.st_ino=reqinode();
-		writeinode(root->vstat.st_ino,*root);
+		writeinode(root->vstat.st_ino,root);
 	}
   // No entries
   // Set root directory of filesystem

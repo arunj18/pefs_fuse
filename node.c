@@ -21,7 +21,7 @@ int getNodeRel(const char *path, struct node *root, struct node *node){
   // directory) due to recursion.
 	if(path[1] == '\0'){
 		*node = *root;
-		return 2;
+		return 1;
 	}
 
   // Extract name from path
