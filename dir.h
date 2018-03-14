@@ -6,10 +6,10 @@
 #define _DIR_H
 
 #define DIRENT_SIZE sizeof(struct direntry)
-#define MAX_DIRENTRY 4086/DIRENT_SIZE
+#define MAX_DIRENTRY 14
 
 struct direntry {
-  char  name[PATH_MAX]; //assume PATH_MAX is 256
+  char  name[256]; //assume PATH_MAX is 256
   ino_t   node_num;
   int 	next;	//stores 0 or 1 indicating if there is a file or directory in the same level
 };																																																																		

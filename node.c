@@ -21,7 +21,7 @@ int getNodeRel(const char *path, struct node *root, struct node *node){
   // directory) due to recursion.
 	if(path[1] == '\0'){
 		*node = *root;
-		return 1;
+		return 2;
 	}
 
   // Extract name from path
@@ -40,6 +40,7 @@ int getNodeRel(const char *path, struct node *root, struct node *node){
 
 	//dir_find will return the direntry structure	
 	if(!dir_find(root, name, namelen, &dirent,&blk_no,&entry_no)){
+		//printf("DIR find problem\n");
 		errno = ENOENT;
 		return 0;
 	}

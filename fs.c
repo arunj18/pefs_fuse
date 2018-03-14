@@ -408,22 +408,24 @@ static int createEntry(const char *path, mode_t mode,struct node **node){
 	}
  // Create new node
 	*node = malloc(sizeof(struct node));
-
-	(*node)->vstat.st_ino = reqinode();
-
-	printf("New Inode no:%d\n",(*node)->vstat.st_ino);
+	//printf("New Inode no:%d\n",(*node)->vstat.st_ino);
 	if(!*node){
 		return -ENOMEM;
 	}
 
-	(*node)->fd_count =0;
-	(*node)->delete_on_close =0;
-
+	
   // Initialize stats
 	if(!initstat(*node, mode)){
 		free(*node);
 		return -errno;
 	}
+
+	(*node)->vstat.st_ino = reqinode();
+
+	(*node)->fd_count =0;
+	(*node)->delete_on_close =0;
+
+	(*node)->data=-1;
 
 	struct fuse_context *context =fuse_get_context();
 	(*node)->vstat.st_uid =context->uid;
@@ -432,9 +434,17 @@ static int createEntry(const char *path, mode_t mode,struct node **node){
 	writeinode((*node)->vstat.st_ino,**node);
 
   // Add to parent directory
-	if(!dir_add_alloc(&directory, makeBasenameSafe(path), *node, 0)){
-		free(*node);
-		return -errno;
+	if(ret ==2)
+	{	if(!dir_add_alloc(our_fs.root, makeBasenameSafe(path), *node, 0)){
+			free(*node);
+			return -errno;
+		}
+	}
+	else{
+		if(!dir_add_alloc(&directory, makeBasenameSafe(path), *node, 0)){
+			free(*node);
+			return -errno;
+		}
 	}
 	return 0;
 }
@@ -606,6 +616,11 @@ static int ourfs_mkdir(const char *path,mode_t mode){
 	char bitmap[2]={'\0'};
 	writeblock(node->data,bitmap,offset,2);
 	writeinode(node->vstat.st_ino,*node);
+	printf("mkdir done\n");
+	struct node root;
+	getinode(0,&root);
+	printf("%d\n",root.data);
+	printf("%d\n",our_fs.root->data);
 	return 0;
 }
 
