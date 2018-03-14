@@ -922,17 +922,19 @@ static int ourfs_truncate(const char *path, off_t size){
 
 static int ourfs_open(const char *path, struct fuse_file_info *fi){	
 	struct node *node_new=malloc(sizeof(struct node));
-	if(!getNodeByPath(path, &our_fs, node)){
+	if(!getNodeByPath(path, &our_fs, node_new)){
 		return -errno;
 	}
-	if(!S_ISREG(node.vstat.st_mode)){
-		if(S_ISDIR(node.vstat.st_mode)){
+	if(!S_ISREG(node_new->vstat.st_mode)){
+		if(S_ISDIR(node_new->vstat.st_mode)){
 			return -EISDIR;	
 		}
 	}
 
   // Update file timestamps
-	updateTime(&node, U_ATIME);
+	updateTime(node_new, U_ATIME);
+	if(writeinode(node_new->vstat.st_ino,node_new) != 0)
+		return -errno;
 
   // The "file handle" is a pointer to a struct we use to keep track of the inode and the
   // flags passed to open().
@@ -941,7 +943,7 @@ static int ourfs_open(const char *path, struct fuse_file_info *fi){
 	fh->o_flags = fi->flags;
 	fi->fh = (uint64_t) fh;
 
-	node.fd_count++;
+	node_new->fd_count++;
 	//if(writeinode(node.vstat.st_ino,node) != 0)
 	//	return -errno;
 	return 0;
@@ -967,24 +969,39 @@ static int ourfs_read(const char *path, char *buf, size_t size, off_t offset, st
   // Calculate number of bytes to copy
 	size_t avail = filesize - offset;
 	size_t n = (size < avail) ? size : avail; //n bytes to read? but they might be in different blocks
-	int block_no= offset/(BLOCKSIZE+1-(sizeof(struct disk block)));//which block to move to?
+	int block_no= offset/(BLOCKSIZE+1-(sizeof(struct disk_block)));//which block to move to?
 	int read_block=node->data;	
 	while(block_no!=0){
-		read_block=get_next_block(read_block);
+		read_block=get_next_block(read_block,1);
 		block_no--;
 	}
-	
-	// Copy file contents
+	int in_block=offset%(BLOCKSIZE-sizeof(struct disk_block));//where in the block
+	size_t left_to_do=n,done=0;	
+// Copy file contents
 	//readblock and copy the contents to a buffer
-	if(readblock(node->data,buf,offset,n)!= n)
+	size_t bytesdoing=BLOCKSIZE-sizeof(struct disk_block)-in_block<left_to_do?BLOCKSIZE-sizeof(struct disk_block)-in_block:left_to_do;
+	if(readblock(read_block,buf+done,in_block,bytesdoing)!= n)
 			{	//set errno for I/O ERROR
 				return 0;
 			}
-
+	done+=bytesdoing;
+	left_to_do-=bytesdoing;
+	while(left_to_do){
+		read_block=get_next_block(read_block,1);
+		bytesdoing=BLOCKSIZE-sizeof(struct disk_block)<left_to_do?BLOCKSIZE-sizeof(struct disk_block):left_to_do;
+		int val=readblock(read_block,buf+done,0,bytesdoing);
+		if(val!= bytesdoing)
+			{	//set errno for I/O ERROR
+				return done+val;
+			}
+		done+=bytesdoing;
+		left_to_do-=bytesdoing;
+	}
+	
 	updateTime(node, U_ATIME);
 	if(writeinode(node->vstat.st_ino,node) != 0)
 		return -errno;
-	return n;
+	return done;
 }
 
 
