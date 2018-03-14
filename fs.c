@@ -137,7 +137,7 @@ int writeblock(int block_no,char *data,int offset,size_t bytes){ //function that
 		write_done=write(fd,data,(BLOCKSIZE-sizeof(struct disk_block)-offset));
 	else
 		write_done=write(fd,data,bytes);
-	int test =BLOCKSIZE-sizeof(struct disk_block);
+	//int test =BLOCKSIZE-sizeof(struct disk_block);
 	pthread_mutex_unlock(&lock); //give up lock on file read/write
 	close(fd);
 	if(write_done<0)
