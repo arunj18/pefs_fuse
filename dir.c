@@ -201,7 +201,7 @@ int dir_remove(struct node *dirnode, const char *name) {
 	int bnum = dirnode->data;
 	int ent_num=0; //cast each element of bitmap to int and then & with ent_num- one more loop!!
 	int index;
-	int bit_no;
+	unsigned char bit_no;
 
 	//read the bitmap array
 	int offset=MAX_DIRENTRY*DIRENT_SIZE;
@@ -238,10 +238,10 @@ int dir_remove(struct node *dirnode, const char *name) {
 			for(int bit=0;bit<8;bit++)
 			{	++ent_num;
 				if(bit_no & bitmap[index])
-				{	if(strlen(ent->name) == namelen) 
-					{	if(strncmp(ent->name, name, namelen) == 0) 
+				{	if(strlen(ent[ent_num-1].name) == namelen) 
+					{	if(strncmp(ent[ent_num-1].name, name, namelen) == 0) 
 						{
-							bitmap[index] = bitmap[index] & !bit_no;
+							bitmap[index] = bitmap[index] & ~bit_no;
 							//write the bitmap back to disk
 							writeblock(bnum,bitmap,MAX_DIRENTRY*DIRENT_SIZE,(int)ceil(MAX_DIRENTRY/(float)8));
 							ino_t inode = ent[ent_num-1].node_num;
@@ -251,6 +251,8 @@ int dir_remove(struct node *dirnode, const char *name) {
 							{	dirnode->vstat.st_nlink--;
 								writeinode(dirnode->vstat.st_ino,dirnode);
 							}
+							cur_node.vstat.st_nlink--;
+							writeinode(inode,&cur_node);
 							free(ent); 
 							return 1;
 						}

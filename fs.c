@@ -588,7 +588,7 @@ static int ourfs_readdir(const char *path,void *buf,fuse_fill_dir_t filler,off_t
 			free(ent);
 			return 0;
 		}
-		char bit_no;
+		unsigned char bit_no;
 		ent_num = 0;
 		int index;
 		for(index=0;index<2;index++)
