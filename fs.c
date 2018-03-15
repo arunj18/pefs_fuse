@@ -53,9 +53,9 @@ struct disk_block{
 }__attribute__((packed));
 static int opendisk(void){
 	//static int fd;
-	fd=open("/home/ajvm/Desktop/fuse_ork/ak/the_fs",O_RDWR|O_CREAT|O_EXCL,0777);
+	fd=open("/home/anusha/FileSystem/fuse-3.2.1/build/Phase2/pefs_fuse-ak/the_fs",O_RDWR|O_CREAT|O_EXCL,0777);
 	if(fd<0){
-		fd=open("/home/ajvm/Desktop/fuse_ork/ak/the_fs",O_RDWR,0644);
+		fd=open("/home/anusha/FileSystem/fuse-3.2.1/build/Phase2/pefs_fuse-ak/the_fs",O_RDWR,0644);
 		if(fd<0)
 			exit(4);
 		char buf[9];
@@ -98,7 +98,7 @@ static int opendisk(void){
 int superblockread(){
 	int n_free_blocks;
 	pthread_mutex_lock(&lock); //get a lock on the read and write from file
-	fd=open("/home/ajvm/Desktop/fuse_ork/ak/the_fs",O_RDWR);
+	fd=open("/home/anusha/FileSystem/fuse-3.2.1/build/Phase2/pefs_fuse-ak/the_fs",O_RDWR);
 	if(fd<0)
 		perror("open");	
 	lseek(fd,8+2046,SEEK_SET); //move to where the block info is stored
@@ -110,7 +110,7 @@ int superblockread(){
 char getblocktype(int block_no){ //function to know what kind of block it is, i.e. Inode,directory,data
 	struct disk_block temp; //temporary storage
 	pthread_mutex_lock(&lock); //get a lock on the read and write from file
-	fd=open("/home/ajvm/Desktop/fuse_ork/ak/the_fs",O_RDWR);
+	fd=open("/home/anusha/FileSystem/fuse-3.2.1/build/Phase2/pefs_fuse-ak/the_fs",O_RDWR);
 	if(fd<0)
 		perror("open");	
 	lseek(fd,BLOCKSIZE*(block_no+2)-sizeof(struct disk_block),SEEK_SET); //move to where the block info is stored
@@ -122,7 +122,7 @@ char getblocktype(int block_no){ //function to know what kind of block it is, i.
 int readblock(int block_no,char *data,int offset,size_t bytes){ //function that reads from a block. Not much error handling done
 	int read_done;	//how many bytes read done
 	pthread_mutex_lock(&lock); //get a lock on file read/write
-	fd=open("/home/ajvm/Desktop/fuse_ork/ak/the_fs",O_RDWR);
+	fd=open("/home/anusha/FileSystem/fuse-3.2.1/build/Phase2/pefs_fuse-ak/the_fs",O_RDWR);
 	if(fd<0)
 		perror("open");	
 	lseek(fd,(BLOCKSIZE*(block_no+1))+offset,SEEK_SET);	//move to beginning of block
@@ -141,7 +141,7 @@ int writeblock(int block_no,char *data,int offset,size_t bytes){ //function that
 	if(offset>BLOCKSIZE-sizeof(struct disk_block))
 		return -1;
 	pthread_mutex_lock(&lock);	//get a lock on file read/write
-	fd=open("/home/ajvm/Desktop/fuse_ork/ak/the_fs",O_RDWR);
+	fd=open("/home/anusha/FileSystem/fuse-3.2.1/build/Phase2/pefs_fuse-ak/the_fs",O_RDWR);
 	if(fd<0)
 		perror("open");
 	lseek(fd,(BLOCKSIZE*(block_no+1))+offset,SEEK_SET);	//move to beginning of the block
@@ -159,7 +159,7 @@ int writeblock(int block_no,char *data,int offset,size_t bytes){ //function that
 int get_next_block(int block_no,int nxorpr){ //function to get next and prev block numbers
 	struct disk_block temp; //block info buffer
 	pthread_mutex_lock(&lock); //get a lock on file read/write
-	fd=open("/home/ajvm/Desktop/fuse_ork/ak/the_fs",O_RDWR);
+	fd=open("/home/anusha/FileSystem/fuse-3.2.1/build/Phase2/pefs_fuse-ak/the_fs",O_RDWR);
 	if(fd<0)
 		perror("open");
 	lseek(fd,BLOCKSIZE*(block_no+2)-sizeof(struct disk_block),SEEK_SET); //move to block info
@@ -178,7 +178,7 @@ int reqblock(int block_no,char type){ //function to request a block
 	int prev=-1;
 	int next=-1;
 	pthread_mutex_lock(&lock); //get a lock on file read/write
-	fd=open("/home/ajvm/Desktop/fuse_ork/ak/the_fs",O_RDWR);
+	fd=open("/home/anusha/FileSystem/fuse-3.2.1/build/Phase2/pefs_fuse-ak/the_fs",O_RDWR);
 	if(fd<0)
 		perror("open");
 	lseek(fd,8+2046,SEEK_SET); //go to super block and get the number of free blocks
@@ -237,7 +237,7 @@ int relblock(int block_no){ //function to release a block assigned to you
 	if(block_no<0 && block_no >2046) //can't release a block that doesn't exist
 		return -1;
 	pthread_mutex_lock(&lock); //get a lock on file read/write
-	fd=open("/home/ajvm/Desktop/fuse_ork/ak/the_fs",O_RDWR);
+	fd=open("/home/anusha/FileSystem/fuse-3.2.1/build/Phase2/pefs_fuse-ak/the_fs",O_RDWR);
 	if(fd<0)
 		perror("open");
 	lseek(fd,8+block_no,SEEK_SET); //move to superblock's bitmap
@@ -451,6 +451,9 @@ static int createEntry(const char *path, mode_t mode,struct node **node){
 	}
 
 	(*node)->vstat.st_ino = reqinode();
+	(*node)->vstat.st_nlink = 0;
+
+	printf("while creating inode %d nlink:%d\n",(*node)->vstat.st_ino,(*node)->vstat.st_nlink);
 
 	(*node)->fd_count =0;
 	(*node)->delete_on_close =0;
@@ -490,6 +493,7 @@ static int ourfs_getattr(const char *path,struct stat *stbuffer){
 	if(!getNodeByPath(path,&our_fs,&node)){
 		return -errno;
 	}
+	printf("In getattr:%d\n",node.vstat.st_nlink);
 	stbuffer->st_mode   =node.vstat.st_mode;
 	stbuffer->st_nlink  =node.vstat.st_nlink;
 	stbuffer->st_size   =node.vstat.st_size;

@@ -43,7 +43,6 @@ int dir_add(struct node *dirnode, struct direntry *entry, int replace, int *adde
 	//new entry - Increase the link count
   	ino_t inode = entry->node_num; //inode is allocated
 	
-	
 	struct node cur_node;
 	if(getinode(inode,&cur_node)<0)
 	{
@@ -53,7 +52,8 @@ int dir_add(struct node *dirnode, struct direntry *entry, int replace, int *adde
 	}
 	
 	cur_node.vstat.st_nlink++; //write this back to disk when new entry is written
-	
+	printf("changing inode %d nlink:%d\n",inode,cur_node.vstat.st_nlink);
+
 	if(S_ISDIR(cur_node.vstat.st_mode)) 
 	{
 		dirnode->vstat.st_nlink++;
@@ -91,7 +91,8 @@ int dir_add(struct node *dirnode, struct direntry *entry, int replace, int *adde
 					}
 					//printf("Directory entry added\n");
 					//write its Inode
-		//make sure all these functions work otherwise revert all changes back - how ??			
+		//make sure all these functions work otherwise revert all changes back - how ??	
+					printf("while writing inode %d nlink:%d\n",inode,cur_node.vstat.st_nlink);		
 					if(writeinode(inode,&cur_node)<0) //check with parameters
 					{	printf("Coudn't write inode %d\n",inode);
 						errno =  EIO;
