@@ -95,31 +95,43 @@ static int opendisk(void){
 		return 0;
 	}
 }
-char getblocktype(int block_no){ //function to know what kind of block it is, i.e. Inode,directory,data
-	fd=open("/home/ajvm/Desktop/fuse_ork/ak/the_fs",O_RDWR);
-	if(fd<0)
-		perror("open");
-	struct disk_block temp; //temporary storage
+int superblockread(){
+	int n_free_blocks;
 	pthread_mutex_lock(&lock); //get a lock on the read and write from file
-	lseek(fd,BLOCKSIZE*(block_no+2)-sizeof(struct disk_block),SEEK_SET); //move to where the block info is stored
-	read(fd,(char *)&temp,sizeof(struct disk_block));	//read from that location
-	pthread_mutex_unlock(&lock); //give up the lock on the file read/write
-	close(fd);	
-	return temp.type; //return the type of the block
-}
-int readblock(int block_no,char *data,int offset,size_t bytes){ //function that reads from a block. Not much error handling done
 	fd=open("/home/ajvm/Desktop/fuse_ork/ak/the_fs",O_RDWR);
 	if(fd<0)
 		perror("open");	
+	lseek(fd,8+2046,SEEK_SET); //move to where the block info is stored
+	read(fd,(char *)n_free_blocks,sizeof(int));	//read from that location
+	close(fd);	
+	pthread_mutex_unlock(&lock); //give up the lock on the file read/write
+	return n_free_blocks;
+}
+char getblocktype(int block_no){ //function to know what kind of block it is, i.e. Inode,directory,data
+	struct disk_block temp; //temporary storage
+	pthread_mutex_lock(&lock); //get a lock on the read and write from file
+	fd=open("/home/ajvm/Desktop/fuse_ork/ak/the_fs",O_RDWR);
+	if(fd<0)
+		perror("open");	
+	lseek(fd,BLOCKSIZE*(block_no+2)-sizeof(struct disk_block),SEEK_SET); //move to where the block info is stored
+	read(fd,(char *)&temp,sizeof(struct disk_block));	//read from that location
+	close(fd);	
+	pthread_mutex_unlock(&lock); //give up the lock on the file read/write
+	return temp.type; //return the type of the block
+}
+int readblock(int block_no,char *data,int offset,size_t bytes){ //function that reads from a block. Not much error handling done
 	int read_done;	//how many bytes read done
 	pthread_mutex_lock(&lock); //get a lock on file read/write
+	fd=open("/home/ajvm/Desktop/fuse_ork/ak/the_fs",O_RDWR);
+	if(fd<0)
+		perror("open");	
 	lseek(fd,(BLOCKSIZE*(block_no+1))+offset,SEEK_SET);	//move to beginning of block
 	if(offset+bytes > BLOCKSIZE-sizeof(struct disk_block)) //check if size of what is given to this function should not exceed block
 		read_done=read(fd,data,(BLOCKSIZE-sizeof(struct disk_block)-offset));
 	else
 		read_done=read(fd,data,bytes);
+	close(fd);	
 	pthread_mutex_unlock(&lock); //give up the lock on file read/write
-	close(fd);
 	if(read_done<0)
 		perror("read");
 	return read_done; //return how many bytes have been read
@@ -128,32 +140,32 @@ int writeblock(int block_no,char *data,int offset,size_t bytes){ //function that
 	int write_done;	//how many bytes write done
 	if(offset>BLOCKSIZE-sizeof(struct disk_block))
 		return -1;
-	fd=open("/home/ajvm/Desktop/fuse_ork/ak/the_fs",O_RDWR);	
-	if(fd<0)
-		perror("open");	
 	pthread_mutex_lock(&lock);	//get a lock on file read/write
+	fd=open("/home/ajvm/Desktop/fuse_ork/ak/the_fs",O_RDWR);
+	if(fd<0)
+		perror("open");
 	lseek(fd,(BLOCKSIZE*(block_no+1))+offset,SEEK_SET);	//move to beginning of the block
 	if(offset+bytes > BLOCKSIZE-sizeof(struct disk_block)) //check if size of what is given to this function should not exceed block
 		write_done=write(fd,data,(BLOCKSIZE-sizeof(struct disk_block)-offset));
 	else
 		write_done=write(fd,data,bytes);
 	//int test =BLOCKSIZE-sizeof(struct disk_block);
+	close(fd);	
 	pthread_mutex_unlock(&lock); //give up lock on file read/write
-	close(fd);
 	if(write_done<0)
 		perror("read");
 	return write_done; //return how many bytes have been written
 }
 int get_next_block(int block_no,int nxorpr){ //function to get next and prev block numbers
 	struct disk_block temp; //block info buffer
-	fd=open("/home/ajvm/Desktop/fuse_ork/ak/the_fs",O_RDWR);	
-	if(fd<0)
-		perror("open");	
 	pthread_mutex_lock(&lock); //get a lock on file read/write
+	fd=open("/home/ajvm/Desktop/fuse_ork/ak/the_fs",O_RDWR);
+	if(fd<0)
+		perror("open");
 	lseek(fd,BLOCKSIZE*(block_no+2)-sizeof(struct disk_block),SEEK_SET); //move to block info
 	read(fd,(char *)&temp,sizeof(struct disk_block)); //read the block info
+	close(fd);
 	pthread_mutex_unlock(&lock); //give up lock on file read/write
-	close(fd);	
 	if(nxorpr==0)	//if 0,prev; if 1,next : Replace with #define or enum?
 		return temp.prev_block; 
 	else if(nxorpr==1)
@@ -165,10 +177,10 @@ int reqblock(int block_no,char type){ //function to request a block
 	int free_b;
 	int prev=-1;
 	int next=-1;
+	pthread_mutex_lock(&lock); //get a lock on file read/write
 	fd=open("/home/ajvm/Desktop/fuse_ork/ak/the_fs",O_RDWR);
 	if(fd<0)
-		perror("open");	
-	pthread_mutex_lock(&lock); //get a lock on file read/write
+		perror("open");
 	lseek(fd,8+2046,SEEK_SET); //go to super block and get the number of free blocks
 	read(fd,(char *)&free_b,sizeof(int));
 	if(free_b==0){
@@ -213,8 +225,8 @@ int reqblock(int block_no,char type){ //function to request a block
 	temp.prev_block=block_no; //set previous block number
 	temp.next_block=-1; //no next block
 	write(fd,(char *)&temp,sizeof(struct disk_block)); //write changes to block info
-	pthread_mutex_unlock(&lock); //give up lock on file read/write
 	close(fd);	
+	pthread_mutex_unlock(&lock); //give up lock on file read/write
 	return i; //return block number allocated
 }
 int relblock(int block_no){ //function to release a block assigned to you
@@ -224,10 +236,10 @@ int relblock(int block_no){ //function to release a block assigned to you
 	struct disk_block temp,temp1;
 	if(block_no<0 && block_no >2046) //can't release a block that doesn't exist
 		return -1;
+	pthread_mutex_lock(&lock); //get a lock on file read/write
 	fd=open("/home/ajvm/Desktop/fuse_ork/ak/the_fs",O_RDWR);
 	if(fd<0)
-		perror("open");	
-	pthread_mutex_lock(&lock); //get a lock on file read/write
+		perror("open");
 	lseek(fd,8+block_no,SEEK_SET); //move to superblock's bitmap
 	write(fd,"0",1); //write 0 to indicate block is free
 	lseek(fd,8+2046,SEEK_SET); //move to superblock number of free blocks part
@@ -255,8 +267,8 @@ int relblock(int block_no){ //function to release a block assigned to you
 	write(fd,"0",1); //write the changes to bitmap
 	lseek(fd,-BLOCKSIZE+8+2046,SEEK_END); //move to free block number
 	write(fd,(char *)&free_b,sizeof(int)); //write changes
-	pthread_mutex_unlock(&lock); //give up lock on file read/write
 	close(fd);	
+	pthread_mutex_unlock(&lock); //give up lock on file read/write
 	return 0; //successful release of block
 }
 struct inode_block{ //inode block structure
@@ -353,7 +365,22 @@ int getinode(ino_t inode_no,struct node * inode){ //get the inode
 	return 0; //successful return
 }
 
-
+int inodesused(){
+	int inodes_used;
+	int block_no=0;
+	struct inode_block inode_table;
+	readblock(block_no,(char *)&inode_table,0,sizeof(struct inode_block)); //get the inode table
+	//inode=(struct node *)(malloc(sizeof(struct node))); //make some memory on to point the result to
+	inodes_used+=25-inode_table.free_inode_no; //get the inode from the inode table and copy values
+	block_no=get_next_block(block_no,1);	
+	while(block_no!=-1){
+		readblock(block_no,(char *)&inode_table,0,sizeof(struct inode_block)); //get the inode table
+		//inode=(struct node *)(malloc(sizeof(struct node))); //make some memory on to point the result to
+		inodes_used+=25-inode_table.free_inode_no; //get the inode from the inode table and copy values
+		block_no=get_next_block(block_no,1);	
+	}
+	return inodes_used; //successful return
+}
 char * makeDirnameSafe(const char *message){
 	char *buffer =strdup(message);
 	char *directory =dirname(buffer);
@@ -570,7 +597,8 @@ static int ourfs_readdir(const char *path,void *buf,fuse_fill_dir_t filler,off_t
 			{	++ent_num;
 				if(bit_no & bitmap[index])
 				{	
-					getinode(ent[ent_num-1].node_num,&inode);	//assuming works without error
+					int temp=ent[ent_num-1].node_num;
+					getinode(temp,&inode);	//assuming works without error
 					if(filler(buf, ent[ent_num-1].name, &inode.vstat, 0,0))
 					{	free(ent);
 						return 0;	//break;
@@ -689,7 +717,8 @@ static int ourfs_unlink(const char *path){
 		else{
       // There are open file descriptors, schedule deletion
 			node.delete_on_close = 1;
-			if(writeinode(node.vstat.st_ino,&node) != 0)
+			int temp=node.vstat.st_ino;
+			if(writeinode(temp,&node) != 0)
 				return -errno;
 		}
 	}
@@ -733,9 +762,10 @@ static int ourfs_rmdir(const char *path){
 				return -ENOTEMPTY; 
 			}	
 		}
+		bnum=get_next_block(bnum,1);
 		if(empty_flag)
 			relblock(bnum);
-		bnum=get_next_block(bnum,1);
+		
 	}
 	
 	dirpath = makeDirnameSafe(path);
@@ -860,7 +890,8 @@ static int ourfs_chmod(const char *path, mode_t mode){
 
 	node.vstat.st_mode = (node.vstat.st_mode & ~mask) | (mode & mask);
 	updateTime(&node, U_CTIME);
-	if(writeinode(node.vstat.st_ino,&node) != 0)
+	int temp=node.vstat.st_ino;
+	if(writeinode(temp,&node) != 0)
 		return -errno;
 	return 0;
 }
@@ -874,8 +905,8 @@ static int ourfs_chown(const char *path, uid_t uid, gid_t gid){
 	node.vstat.st_uid = uid;
 	node.vstat.st_gid = gid;
 	updateTime(&node, U_CTIME);
-
-	if(writeinode(node.vstat.st_ino,&node) != 0)
+	int temp=node.vstat.st_ino;
+	if(writeinode(temp,&node) != 0)
 		return -errno;
 	return 0;
 }
@@ -887,6 +918,7 @@ static int ourfs_utimens(const char *path, const struct timespec ts[2]){
 	}
 	node.vstat.st_atime = ts[0].tv_sec;
 	node.vstat.st_mtime = ts[1].tv_sec;
+	int temp=node.vstat.st_ino;	
 	if(writeinode(node.vstat.st_ino,&node) != 0)
 		return -errno;
 	return 0;
@@ -923,7 +955,8 @@ static int ourfs_truncate(const char *path, off_t size){
   // Update file size
 	node.vstat.st_size = size;
 	node.vstat.st_blocks = newblkcnt;
-	if(writeinode(node.vstat.st_ino,&node) != 0)
+	int temp=node.vstat.st_ino;
+	if(writeinode(temp,&node) != 0)
 		return -errno;
 	return 0;
 }
@@ -952,8 +985,8 @@ static int ourfs_open(const char *path, struct fuse_file_info *fi){
 	fi->fh = (uint64_t) fh;
 
 	node_new->fd_count++;
-	//if(writeinode(node.vstat.st_ino,node) != 0)
-	//	return -errno;
+	if(writeinode(node_new->vstat.st_ino,node_new) != 0)
+		return -errno;
 	return 0;
 }
 
@@ -1149,8 +1182,44 @@ static int ourfs_release(const char *path, struct fuse_file_info *fi){
 	free(fh);
 	return 0;
 }
+/*
+static int ourfs_flush(const char *path, struct fuse_file_info *fi){	
+	struct node *node_new=malloc(sizeof(struct node));
+	if(!getNodeByPath(path, &our_fs, node_new)){
+		return -errno;
+	}
+	if(!S_ISREG(node_new->vstat.st_mode)){
+		if(S_ISDIR(node_new->vstat.st_mode)){
+			return -EISDIR;	
+		}
+	}
 
+  // Update file timestamps
+	updateTime(node_new, U_ATIME);
+	if(writeinode(node_new->vstat.st_ino,node_new) != 0)
+		return -errno;
 
+  // The "file handle" is a pointer to a struct we use to keep track of the inode and the
+  // flags passed to open().
+	struct filehandle *fh = malloc(sizeof(struct filehandle));
+	fh->node    = node_new;
+	fh->o_flags = fi->flags;
+	fi->fh = (uint64_t) fh;
+
+	node_new->fd_count++;
+	if(writeinode(node_new->vstat.st_ino,node) != 0)
+		return -errno;
+	return 0;
+}*/
+int ourfs_statfs(const char *anyfile, struct statvfs *storage){
+	storage->f_bsize=BLOCKSIZE;
+	storage->f_blocks=2048;
+	storage->f_namemax=256;
+	storage->f_bfree=superblockread();
+	storage->f_bavail=storage->f_bfree;
+	storage->f_files=inodesused();
+	return 0;
+}
 static struct fuse_operations ourfs_oper ={
 	.getattr      = ourfs_getattr,
 	.readlink     = ourfs_readlink,
@@ -1169,7 +1238,10 @@ static struct fuse_operations ourfs_oper ={
 	.open         = ourfs_open,
 	.read         = ourfs_read,
 	.write        = ourfs_write,
-	.release      = ourfs_release
+	.release      = ourfs_release,
+	.statfs	      = ourfs_statfs,
+	//.flush	      = ourfs_flush
+	//.close	      = ourfs_close
 };
 
 //

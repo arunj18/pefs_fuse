@@ -92,7 +92,7 @@ int dir_add(struct node *dirnode, struct direntry *entry, int replace, int *adde
 					//printf("Directory entry added\n");
 					//write its Inode
 		//make sure all these functions work otherwise revert all changes back - how ??			
-					if(writeinode(inode,cur_node)<0) //check with parameters
+					if(writeinode(inode,&cur_node)<0) //check with parameters
 					{	printf("Coudn't write inode %d\n",inode);
 						errno =  EIO;
 						return 0;
