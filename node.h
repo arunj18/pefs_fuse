@@ -6,12 +6,15 @@
 
 struct node {
   struct stat   vstat;
-  int         data;
-  unsigned int  fd_count;
+
+ //copy paste all stat attributes - not sure
+
+  int data;	//block no. of direntry table or data block
+  unsigned int  fd_count; 
   int           delete_on_close;
 };
 
-int getNodeRel(const char *path, struct node *root, struct node **node);
+int getNodeRel(const char *path, struct node *root, struct node *node);
 
 #endif
 
