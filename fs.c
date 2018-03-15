@@ -53,9 +53,9 @@ struct disk_block{
 }__attribute__((packed));
 static int opendisk(void){
 	//static int fd;
-	fd=open("/home/anusha/FileSystem/fuse-3.2.1/build/Phase2/pefs_fuse-ak/the_fs",O_RDWR|O_CREAT|O_EXCL,0777);
+	fd=open("/home/anusha/FileSystem/fuse-3.2.1/build/final/pefs_fuse-aj/the_fs",O_RDWR|O_CREAT|O_EXCL,0777);
 	if(fd<0){
-		fd=open("/home/anusha/FileSystem/fuse-3.2.1/build/Phase2/pefs_fuse-ak/the_fs",O_RDWR,0644);
+		fd=open("/home/anusha/FileSystem/fuse-3.2.1/build/final/pefs_fuse-aj/the_fs",O_RDWR,0644);
 		if(fd<0)
 			exit(4);
 		char buf[9];
@@ -98,7 +98,7 @@ static int opendisk(void){
 int superblockread(){
 	int n_free_blocks;
 	pthread_mutex_lock(&lock); //get a lock on the read and write from file
-	fd=open("/home/anusha/FileSystem/fuse-3.2.1/build/Phase2/pefs_fuse-ak/the_fs",O_RDWR);
+	fd=open("/home/anusha/FileSystem/fuse-3.2.1/build/final/pefs_fuse-aj/the_fs",O_RDWR);
 	if(fd<0)
 		perror("open");	
 	lseek(fd,8+2046,SEEK_SET); //move to where the block info is stored
@@ -110,7 +110,7 @@ int superblockread(){
 char getblocktype(int block_no){ //function to know what kind of block it is, i.e. Inode,directory,data
 	struct disk_block temp; //temporary storage
 	pthread_mutex_lock(&lock); //get a lock on the read and write from file
-	fd=open("/home/anusha/FileSystem/fuse-3.2.1/build/Phase2/pefs_fuse-ak/the_fs",O_RDWR);
+	fd=open("/home/anusha/FileSystem/fuse-3.2.1/build/final/pefs_fuse-aj/the_fs",O_RDWR);
 	if(fd<0)
 		perror("open");	
 	lseek(fd,BLOCKSIZE*(block_no+2)-sizeof(struct disk_block),SEEK_SET); //move to where the block info is stored
@@ -122,7 +122,7 @@ char getblocktype(int block_no){ //function to know what kind of block it is, i.
 int readblock(int block_no,char *data,int offset,size_t bytes){ //function that reads from a block. Not much error handling done
 	int read_done;	//how many bytes read done
 	pthread_mutex_lock(&lock); //get a lock on file read/write
-	fd=open("/home/anusha/FileSystem/fuse-3.2.1/build/Phase2/pefs_fuse-ak/the_fs",O_RDWR);
+	fd=open("/home/anusha/FileSystem/fuse-3.2.1/build/final/pefs_fuse-aj/the_fs",O_RDWR);
 	if(fd<0)
 		perror("open");	
 	lseek(fd,(BLOCKSIZE*(block_no+1))+offset,SEEK_SET);	//move to beginning of block
@@ -141,7 +141,7 @@ int writeblock(int block_no,char *data,int offset,size_t bytes){ //function that
 	if(offset>BLOCKSIZE-sizeof(struct disk_block))
 		return -1;
 	pthread_mutex_lock(&lock);	//get a lock on file read/write
-	fd=open("/home/anusha/FileSystem/fuse-3.2.1/build/Phase2/pefs_fuse-ak/the_fs",O_RDWR);
+	fd=open("/home/anusha/FileSystem/fuse-3.2.1/build/final/pefs_fuse-aj/the_fs",O_RDWR);
 	if(fd<0)
 		perror("open");
 	lseek(fd,(BLOCKSIZE*(block_no+1))+offset,SEEK_SET);	//move to beginning of the block
@@ -159,7 +159,7 @@ int writeblock(int block_no,char *data,int offset,size_t bytes){ //function that
 int get_next_block(int block_no,int nxorpr){ //function to get next and prev block numbers
 	struct disk_block temp; //block info buffer
 	pthread_mutex_lock(&lock); //get a lock on file read/write
-	fd=open("/home/anusha/FileSystem/fuse-3.2.1/build/Phase2/pefs_fuse-ak/the_fs",O_RDWR);
+	fd=open("/home/anusha/FileSystem/fuse-3.2.1/build/final/pefs_fuse-aj/the_fs",O_RDWR);
 	if(fd<0)
 		perror("open");
 	lseek(fd,BLOCKSIZE*(block_no+2)-sizeof(struct disk_block),SEEK_SET); //move to block info
@@ -178,7 +178,7 @@ int reqblock(int block_no,char type){ //function to request a block
 	int prev=-1;
 	int next=-1;
 	pthread_mutex_lock(&lock); //get a lock on file read/write
-	fd=open("/home/anusha/FileSystem/fuse-3.2.1/build/Phase2/pefs_fuse-ak/the_fs",O_RDWR);
+	fd=open("/home/anusha/FileSystem/fuse-3.2.1/build/final/pefs_fuse-aj/the_fs",O_RDWR);
 	if(fd<0)
 		perror("open");
 	lseek(fd,8+2046,SEEK_SET); //go to super block and get the number of free blocks
@@ -237,7 +237,7 @@ int relblock(int block_no){ //function to release a block assigned to you
 	if(block_no<0 && block_no >2046) //can't release a block that doesn't exist
 		return -1;
 	pthread_mutex_lock(&lock); //get a lock on file read/write
-	fd=open("/home/anusha/FileSystem/fuse-3.2.1/build/Phase2/pefs_fuse-ak/the_fs",O_RDWR);
+	fd=open("/home/anusha/FileSystem/fuse-3.2.1/build/final/pefs_fuse-aj/the_fs",O_RDWR);
 	if(fd<0)
 		perror("open");
 	lseek(fd,8+block_no,SEEK_SET); //move to superblock's bitmap
@@ -366,7 +366,7 @@ int getinode(ino_t inode_no,struct node * inode){ //get the inode
 }
 
 int inodesused(){
-	int inodes_used;
+	int inodes_used=0;
 	int block_no=0;
 	struct inode_block inode_table;
 	readblock(block_no,(char *)&inode_table,0,sizeof(struct inode_block)); //get the inode table
@@ -438,7 +438,6 @@ static int createEntry(const char *path, mode_t mode,struct node **node){
 	}
  // Create new node
 	*node = malloc(sizeof(struct node));
-	//printf("New Inode no:%d\n",(*node)->vstat.st_ino);
 	if(!*node){
 		return -ENOMEM;
 	}
@@ -451,9 +450,6 @@ static int createEntry(const char *path, mode_t mode,struct node **node){
 	}
 
 	(*node)->vstat.st_ino = reqinode();
-	(*node)->vstat.st_nlink = 0;
-
-	printf("while creating inode %d nlink:%d\n",(*node)->vstat.st_ino,(*node)->vstat.st_nlink);
 
 	(*node)->fd_count =0;
 	(*node)->delete_on_close =0;
@@ -488,12 +484,11 @@ static int createEntry(const char *path, mode_t mode,struct node **node){
 //
 
 static int ourfs_getattr(const char *path,struct stat *stbuffer){
-	
+	printf("getattr:%s\n",path);
 	struct node node;
 	if(!getNodeByPath(path,&our_fs,&node)){
 		return -errno;
 	}
-	printf("In getattr:%d\n",node.vstat.st_nlink);
 	stbuffer->st_mode   =node.vstat.st_mode;
 	stbuffer->st_nlink  =node.vstat.st_nlink;
 	stbuffer->st_size   =node.vstat.st_size;
@@ -514,6 +509,7 @@ static int ourfs_getattr(const char *path,struct stat *stbuffer){
 
 static int ourfs_readlink(const char *path,char *buf,size_t size){
 
+	printf("readlink:%s\n",path);
 	struct node node;
 	if(!getNodeByPath(path, &our_fs, &node)){
 		return -errno;
@@ -566,7 +562,6 @@ static int ourfs_readdir(const char *path,void *buf,fuse_fill_dir_t filler,off_t
 	//problem adding . and .. to direntry table?
 
 	int dtab_bnum = directory.data;
-	//printf("%d\n",dtab_bnum);
 	int off = MAX_DIRENTRY*DIRENT_SIZE;
 	char bitmap[2];
 	int ent_num;
@@ -619,6 +614,8 @@ static int ourfs_readdir(const char *path,void *buf,fuse_fill_dir_t filler,off_t
 }
 
 static int ourfs_mknod(const char *path, mode_t mode, dev_t rdev){
+
+	printf("mknod:%s\n",path);
 	struct node *node;
 	int res = createEntry(path, mode, &node);
 	if(res)
@@ -627,6 +624,8 @@ static int ourfs_mknod(const char *path, mode_t mode, dev_t rdev){
 	if(S_ISREG(mode)){
 		node->data = -1;
 		node->vstat.st_blocks = 0;
+		node->vstat.st_nlink=1;
+		node->delete_on_close=0;
 		//writeinode because inode attributes are changed
 		if(writeinode(node->vstat.st_ino,node) != 0)
 			return -errno;
@@ -651,16 +650,13 @@ static int ourfs_mkdir(const char *path,mode_t mode){
 	char bitmap[2]={'\0'};
 	writeblock(node->data,bitmap,offset,2);
 	writeinode(node->vstat.st_ino,node);
-	printf("mkdir done\n");
-	struct node root;
-	getinode(0,&root);
-	printf("%d\n",root.data);
-	printf("%d\n",our_fs.root->data);
 	return 0;
 }
 
 
 static int ourfs_unlink(const char *path){
+
+	printf("unlink:%s\n",path);
 	char *dirpath, *name;
 	char *data;
   	struct node directory, node;
@@ -689,7 +685,7 @@ static int ourfs_unlink(const char *path){
 		return -errno;
 	}
 	free(name);
-
+	getinode(node.vstat.st_ino,&node);
   // If the link count is zero, delete the associated data
 	if(node.vstat.st_nlink ==0){
 		if(node.fd_count == 0){
@@ -730,6 +726,8 @@ static int ourfs_unlink(const char *path){
 }
 
 static int ourfs_rmdir(const char *path){
+
+	printf("rmdir:%s\n",path);
 	char *dirpath, *name;
 	struct node dir, node;
 
@@ -799,6 +797,8 @@ static int ourfs_rmdir(const char *path){
 
 
 static int ourfs_symlink(const char *from, const char *to){
+
+	printf("symlink:%s\n",from);
 	struct node *node;
 	int res = createEntry(to, S_IFLNK | 0766, &node);
 	if(res)
@@ -818,6 +818,8 @@ static int ourfs_symlink(const char *from, const char *to){
 
 
 static int ourfs_rename(const char *from, const char *to){
+
+	printf("rename:%s\n",from);
 	char *fromdir, *fromnam, *todir, *tonam;
 	struct node node, fromdirnode, todirnode;
 	if(!getNodeByPath(from, &our_fs, &node)){
@@ -856,6 +858,8 @@ static int ourfs_rename(const char *from, const char *to){
 }
 
 static int ourfs_link(const char *from, const char *to){
+
+	printf("link:%s\n",from);
 	char *todir, *tonam;
 	struct node node, todirnode;
 	if(!getNodeByPath(from, &our_fs, &node)){
@@ -882,6 +886,7 @@ static int ourfs_link(const char *from, const char *to){
 }
 
 static int ourfs_chmod(const char *path, mode_t mode){
+	printf("chmod:%s\n",path);
 	struct node node;
 	if(!getNodeByPath(path, &our_fs, &node)){
 		return -errno;
@@ -901,6 +906,7 @@ static int ourfs_chmod(const char *path, mode_t mode){
 }
 
 static int ourfs_chown(const char *path, uid_t uid, gid_t gid){
+	printf("chown:%s\n",path);
 	struct node node;
 	if(!getNodeByPath(path, &our_fs, &node)){
 		return -errno;
@@ -916,6 +922,7 @@ static int ourfs_chown(const char *path, uid_t uid, gid_t gid){
 }
 
 static int ourfs_utimens(const char *path, const struct timespec ts[2]){
+	printf("utimens:%s\n",path);
 	struct node node;
 	if(!getNodeByPath(path, &our_fs, &node)){
 	return -errno;
@@ -930,6 +937,8 @@ static int ourfs_utimens(const char *path, const struct timespec ts[2]){
 
 // Assumption that size_t data structure can take off_t data structure also
 static int ourfs_truncate(const char *path, off_t size){
+
+	printf("truncate:%s\n",path);
 	struct node node;
 	if(!getNodeByPath(path, &our_fs, &node)){
 		return -errno;
@@ -939,22 +948,48 @@ static int ourfs_truncate(const char *path, off_t size){
 	blkcnt_t newblkcnt = (size + (BLOCKSIZE-sizeof(struct disk_block)) - 1) / (BLOCKSIZE - sizeof(struct disk_block));
 	blkcnt_t oldblkcnt = node.vstat.st_blocks;
 
+	int extra_blks;
+	int bnum,prev;
+
+	int max_data = BLOCKSIZE-sizeof(struct disk_block);
+	char *buf;
+	buf = (char *)calloc(max_data,1);
+
 	if(oldblkcnt < newblkcnt){
     // Allocate additional memory
-		char *newdata = malloc(newblkcnt * (BLOCKSIZE-sizeof(struct disk_block)) );
-		if(!newdata){
-			return -ENOMEM;
+		extra_blks = newblkcnt - oldblkcnt;
+		bnum = node.data;
+		while(bnum!=-1)
+		{	
+			prev=bnum;
+			bnum = get_next_block(bnum,1);
 		}
-		//get that block , and perfrom a writeblock copying the truncated data back into that block
-		if(readblock(node.data,newdata,0,node.vstat.st_size)!= node.vstat.st_size)
-			{	//set errno for I/O ERROR
-				return -errno;
-			}
-		if(writeblock(node.data,newdata,0,size)!= size)
-			{	//set errno for I/O ERROR
-				return -errno;
-			}
-				}
+		int off = node.vstat.st_size % max_data;
+		writeblock(prev,buf,off,max_data-(size%max_data));
+		while(extra_blks!=0)
+		{	prev = reqblock(prev,'d');
+			writeblock(prev,buf,0,max_data);
+			extra_blks--;
+		}
+		
+	}
+	else if(oldblkcnt > newblkcnt){
+	
+    // Allocate new memory so we can free the unnecessarily large memory
+		extra_blks = oldblkcnt - newblkcnt;
+		int temp = newblkcnt;
+		bnum =node.data;
+		while(bnum != -1 && temp!=0)
+		{	bnum = get_next_block(bnum,1);
+			temp--;
+		}
+		while(extra_blks!=0 && bnum != -1)
+		{	prev = bnum;
+			bnum = get_next_block(bnum,1);
+			relblock(prev);
+			extra_blks--;
+		}
+ 	}
 
   // Update file size
 	node.vstat.st_size = size;
@@ -965,7 +1000,9 @@ static int ourfs_truncate(const char *path, off_t size){
 	return 0;
 }
 
-static int ourfs_open(const char *path, struct fuse_file_info *fi){	
+static int ourfs_open(const char *path, struct fuse_file_info *fi){
+	
+	printf("open:%s\n",path);	
 	struct node *node_new=malloc(sizeof(struct node));
 	if(!getNodeByPath(path, &our_fs, node_new)){
 		return -errno;
@@ -995,6 +1032,8 @@ static int ourfs_open(const char *path, struct fuse_file_info *fi){
 }
 
 static int ourfs_read(const char *path, char *buf, size_t size, off_t offset, struct fuse_file_info *fi){
+
+	printf("read:%s\n",path);
 	struct filehandle *fh = (struct filehandle *) fi->fh;
 
   // Check whether the file was opened for reading
@@ -1025,7 +1064,7 @@ static int ourfs_read(const char *path, char *buf, size_t size, off_t offset, st
 // Copy file contents
 	//readblock and copy the contents to a buffer
 	size_t bytesdoing=BLOCKSIZE-sizeof(struct disk_block)-in_block<left_to_do?BLOCKSIZE-sizeof(struct disk_block)-in_block:left_to_do;
-	if(readblock(read_block,buf+done,in_block,bytesdoing)!= n)
+	if(readblock(read_block,buf+done,in_block,bytesdoing)!= bytesdoing)
 			{	//set errno for I/O ERROR
 				return 0;
 			}
@@ -1051,6 +1090,8 @@ static int ourfs_read(const char *path, char *buf, size_t size, off_t offset, st
 
 
 static int ourfs_write(const char *path, const char *buf, size_t size, off_t offset, struct fuse_file_info *fi) {
+
+	printf("write:%s\n",path);
 	struct filehandle *fh = (struct filehandle *) fi->fh;
 
   // Check whether the file was opened for writing
@@ -1062,8 +1103,6 @@ static int ourfs_write(const char *path, const char *buf, size_t size, off_t off
 	char *newdata;
   // Calculate number of required blocks
 	blkcnt_t req_blocks = (offset + size + (BLOCKSIZE-sizeof(struct disk_block))- 1) / (BLOCKSIZE-sizeof(struct disk_block));
-
-	printf("blocks:%d\n",req_blocks);
 
 	int max_data = (BLOCKSIZE-sizeof(struct disk_block));
 	int count = (int)ceil(node->vstat.st_size/(float)max_data);
@@ -1077,13 +1116,11 @@ static int ourfs_write(const char *path, const char *buf, size_t size, off_t off
 			
 			node->data = reqblock(-1,'d');
 			count = req_blocks - 1;
-			printf("allocating :%d blocks\n",count);
 			bnum = node->data;
 			while(count!=0)
 			{	bnum=reqblock(bnum,'d');
 				count--;
 			}
-			printf("last allocated block :%d block\n",bnum);
 		}
 		else{
 			count = node->vstat.st_blocks;
@@ -1092,9 +1129,9 @@ static int ourfs_write(const char *path, const char *buf, size_t size, off_t off
 			{	bnum = get_next_block(bnum,1);
 				count--;
 			}
-			printf("last bnum:%d\n",bnum);
+			
 			count = req_blocks - node->vstat.st_blocks;
-			printf("extra:%d blocks\n",count);
+			
 			while(count!=0)
 			{
 				bnum=reqblock(bnum,'d');
@@ -1108,7 +1145,7 @@ static int ourfs_write(const char *path, const char *buf, size_t size, off_t off
 	//memcpy(newdata + offset, buf, size);
 
 	count = (int)ceil(offset/(float)max_data);
-	printf("count:%d\n",count);
+	
 	bnum = node->data;
 	while(count > 1)
 	{	bnum = get_next_block(bnum,1);
@@ -1124,9 +1161,9 @@ static int ourfs_write(const char *path, const char *buf, size_t size, off_t off
 	int i=0;
 	int written;
 	while(size_left!=0)
-	{	printf("size_left:%d\n",size_left);
+	{	
 		written = writeblock(bnum,buf+i,new_offset,size_left);
-		printf("written %d bytes to %d block\n",written,bnum);
+		
 		size_left-= written;
 		if(size_left!=0)
 		{	bnum = get_next_block(bnum,1);
@@ -1135,7 +1172,7 @@ static int ourfs_write(const char *path, const char *buf, size_t size, off_t off
 		}
 	}
 
-	printf("written\n");
+	
   // Update file size if necessary
 	off_t minsize = offset + size;
 	if(minsize > node->vstat.st_size){
@@ -1149,14 +1186,17 @@ static int ourfs_write(const char *path, const char *buf, size_t size, off_t off
 }
 
 static int ourfs_release(const char *path, struct fuse_file_info *fi){
+
+	printf("release:%s\n",path);
 	struct filehandle *fh = (struct filehandle *) fi->fh;
 	int a[50],i,x,j;
 	//i contains the no of elements in the array
   // If the file was deleted but we could not free it due to open file descriptors,
-  // free the node and its data after all file descriptors have been closed.	
-	if(--fh->node->fd_count == 0){
+  // free the node and its data after all file descriptors have been closed.
+	--fh->node->fd_count;
+	if(fh->node->fd_count == 0){
 		if(fh->node->delete_on_close){
-	//free that block ,if that file occupies more than one block then keep calling getnextblock untill -1 is returned
+	//free that block ,if that file occupies more than one block then keep calling getnextblock until -1 is returned
 			int bnum = fh->node->data;
 			x = bnum;
 			a[0] = bnum;
@@ -1180,8 +1220,13 @@ static int ourfs_release(const char *path, struct fuse_file_info *fi){
 				
 				free(fh->node);
 		}
+		else{
+			writeinode(fh->node->vstat.st_ino,(fh->node));		
+		}
 	}
-
+	else{
+		writeinode(fh->node->vstat.st_ino,(fh->node));
+	}
   // Free "file handle"
 	free(fh);
 	return 0;
@@ -1216,6 +1261,8 @@ static int ourfs_flush(const char *path, struct fuse_file_info *fi){
 	return 0;
 }*/
 int ourfs_statfs(const char *anyfile, struct statvfs *storage){
+
+	printf("statfs\n");
 	storage->f_bsize=BLOCKSIZE;
 	storage->f_blocks=2048;
 	storage->f_namemax=256;
@@ -1247,7 +1294,6 @@ static struct fuse_operations ourfs_oper ={
 	//.flush	      = ourfs_flush
 	//.close	      = ourfs_close
 };
-
 //
 // Application entry point
 //
@@ -1261,23 +1307,25 @@ int main(int argc, char *argv[]){
 	//root->vstat.st_gid = getgid();
 	int status=opendisk();
 	if(status){
-		printf("There was a root\n");
 		getinode(0,root);
 	}
 	else{
+		struct inode_block inode_table;
 		initstat(root, S_IFDIR | 0755);
 		root->vstat.st_uid = getuid();
 		root->vstat.st_gid = getgid();
 		root->data = -1;
 		reqblock(-1,'i');
+		readblock(0,(char *)&inode_table,0,sizeof(struct inode_block));
+		inode_table.free_inode_no=25;
+		writeblock(0,(char *)&inode_table,0,sizeof(struct inode_block));
 		root->vstat.st_ino=reqinode();
 		writeinode(root->vstat.st_ino,root);
 	}
   // No entries
   // Set root directory of filesystem
-	char temp[4400];
+	//char temp[4400];
 	//writeblock(0,&temp,0,4400);
-	printf("root->data:%d\n",root->data);
 	our_fs.root = root;
 	umask(0);
 	close(fd);

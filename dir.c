@@ -10,7 +10,6 @@ int dir_add(struct node *dirnode, struct direntry *entry, int replace, int *adde
   	int bnum = dirnode->data;
 	int prev;
 
-	//printf("parent:%d\tchild:%d\n",dirnode->vstat.st_ino,entry->node_num);
 	if(bnum == -1)
 	{
 		
@@ -21,7 +20,6 @@ int dir_add(struct node *dirnode, struct direntry *entry, int replace, int *adde
 			printf("Write Block error\n");
 		dirnode->data = bnum;
 		writeinode(dirnode->vstat.st_ino,dirnode);
-		printf("first block: %d\n",bnum);
 	}
 
   	struct direntry existing_entry;
@@ -43,6 +41,7 @@ int dir_add(struct node *dirnode, struct direntry *entry, int replace, int *adde
 	//new entry - Increase the link count
   	ino_t inode = entry->node_num; //inode is allocated
 	
+	
 	struct node cur_node;
 	if(getinode(inode,&cur_node)<0)
 	{
@@ -52,8 +51,7 @@ int dir_add(struct node *dirnode, struct direntry *entry, int replace, int *adde
 	}
 	
 	cur_node.vstat.st_nlink++; //write this back to disk when new entry is written
-	printf("changing inode %d nlink:%d\n",inode,cur_node.vstat.st_nlink);
-
+	
 	if(S_ISDIR(cur_node.vstat.st_mode)) 
 	{
 		dirnode->vstat.st_nlink++;
@@ -68,7 +66,6 @@ int dir_add(struct node *dirnode, struct direntry *entry, int replace, int *adde
 	//bnum for new directory
 	while(bnum!=-1)	//Traverse for all blocks of the directory.
 	{
-		//printf("Block num:%d\n",bnum);
 		if(readblock(bnum,bitmap,offset,(int)ceil(MAX_DIRENTRY/(float)8))!=(int)ceil(MAX_DIRENTRY/(float)8))
 		{	//set errno for I/O ERROR
 			printf("Coudn't find bitmap\n");
@@ -76,12 +73,10 @@ int dir_add(struct node *dirnode, struct direntry *entry, int replace, int *adde
 			return 0;
 		}
 		int ent_num = 0;
-		//printf("%d\n",(int)ceil(MAX_DIRENTRY/(float)8));
 		for(int index=0;index<(int)ceil(MAX_DIRENTRY/(float)8);index++)
 		{	unsigned char bit_no=128;
 			for(int bit=0;bit<8;bit++)
 			{	++ent_num;
-				//printf("bitmap[%d]:%d\n",index,(int)bitmap[index]);
 				if(!(bit_no & bitmap[index]))
 				{	//is this cast required??
 					if(writeblock(bnum,(char *)entry,DIRENT_SIZE*(ent_num-1),DIRENT_SIZE)!=DIRENT_SIZE)
@@ -89,10 +84,8 @@ int dir_add(struct node *dirnode, struct direntry *entry, int replace, int *adde
 						errno =  EIO; //I/O error;
 						return 0;
 					}
-					//printf("Directory entry added\n");
 					//write its Inode
-		//make sure all these functions work otherwise revert all changes back - how ??	
-					printf("while writing inode %d nlink:%d\n",inode,cur_node.vstat.st_nlink);		
+		//make sure all these functions work otherwise revert all changes back - how ??			
 					if(writeinode(inode,&cur_node)<0) //check with parameters
 					{	printf("Coudn't write inode %d\n",inode);
 						errno =  EIO;
@@ -106,7 +99,7 @@ int dir_add(struct node *dirnode, struct direntry *entry, int replace, int *adde
 					}
 					//write parent Inode - if it is a directory
 					if(S_ISDIR(cur_node.vstat.st_mode)) 
-					{	printf("root->data:%d\n",dirnode->data);
+					{
 						if(writeinode(dirnode->vstat.st_ino,dirnode)<0) //check with parameters
 						{
 							printf("Coudn't write parent inode %d \n",dirnode->vstat.st_ino);
@@ -115,10 +108,6 @@ int dir_add(struct node *dirnode, struct direntry *entry, int replace, int *adde
 						}
 					}
 					*added = 1;
-					struct node root;
-					getinode(0,&root);
-					printf("%d\n",root.data);
-					//printf("Added direntry\n");
 					return 1;
 				}
 				bit_no = bit_no >>  1;
@@ -161,8 +150,7 @@ int dir_add(struct node *dirnode, struct direntry *entry, int replace, int *adde
 	}
 	//write parent Inode 
 	if(S_ISDIR(cur_node.vstat.st_mode)) 
-	{	
-		//printf("%lu\n",dirnode->vstat.st_ino);
+	{
 		if(writeinode(dirnode->vstat.st_ino,dirnode)<0) //check with parameters
 		{	printf("Coudn't write parent inode %d \n",dirnode->vstat.st_ino);
 			errno = EIO;
@@ -254,10 +242,10 @@ int dir_remove(struct node *dirnode, const char *name) {
 							}
 							cur_node.vstat.st_nlink--;
 							int temp=cur_node.vstat.st_ino;
-							if(cur_node.vstat.st_nlink==0 && cur_node.fd_count==0)
-								relinode(temp);
-							else
-								writeinode(inode,&cur_node);
+							//if(cur_node.vstat.st_nlink==0 && cur_node.fd_count==0)
+							//	relinode(temp);
+							//else
+							writeinode(inode,&cur_node);
 							free(ent); 
 							return 1;
 						}
@@ -280,11 +268,11 @@ int dir_remove(struct node *dirnode, const char *name) {
 //the memory for dirnode should be allocated.  //manage locks 
 int dir_find(struct node *dirnode, const char *name, int namelen, struct direntry *entry,int *blk_no,int *entry_no) {
   
-	printf("dir find : %s\n",name);
+	//printf("dir find : %s\n",name);
   //bnum will store block no. of directory entry table
-	//printf("parent inode :%d\n",dirnode->vstat.st_ino);
+	
 	int bnum = dirnode->data;
-	//printf("Block no: %d\n",bnum);
+	
 	int ent_num=0; //cast each element of bitmap to int and then & with ent_num- one more loop!!
 	int index;
 	unsigned char bit_no;
@@ -297,7 +285,7 @@ int dir_find(struct node *dirnode, const char *name, int namelen, struct direntr
 	ent=(struct direntry *)malloc(sizeof(struct direntry)*MAX_DIRENTRY);
 
 	while(bnum!=-1)	//Traverse for all blocks of the directory.
-	{	//printf("Block no: %d\n",bnum);
+	{	
 		if(readblock(bnum,bitmap,offset,(int)ceil(MAX_DIRENTRY/(float)8))!=(int)ceil(MAX_DIRENTRY/(float)8))
 		{	//set errno for I/O ERROR
 			errno =  EIO;
