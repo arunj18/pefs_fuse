@@ -252,7 +252,11 @@ int dir_remove(struct node *dirnode, const char *name) {
 								writeinode(dirnode->vstat.st_ino,dirnode);
 							}
 							cur_node.vstat.st_nlink--;
-							writeinode(inode,&cur_node);
+							int temp=cur_node.vstat.st_ino;
+							if(cur_node.vstat.st_nlink==0 && cur_node.fd_count==0)
+								relinode(temp);
+							else
+								writeinode(inode,&cur_node);
 							free(ent); 
 							return 1;
 						}
@@ -282,7 +286,7 @@ int dir_find(struct node *dirnode, const char *name, int namelen, struct direntr
 	//printf("Block no: %d\n",bnum);
 	int ent_num=0; //cast each element of bitmap to int and then & with ent_num- one more loop!!
 	int index;
-	int bit_no;
+	unsigned char bit_no;
 
 	//read the bitmap array
 	int offset=MAX_DIRENTRY*DIRENT_SIZE;
