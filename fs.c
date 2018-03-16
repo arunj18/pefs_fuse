@@ -53,17 +53,34 @@ struct disk_block{
 }__attribute__((packed));
 static int opendisk(void){
 	//static int fd;
-	fd=open("/home/ajvm/Desktop/fuse_ork/ak/the_fs",O_RDWR|O_CREAT|O_EXCL,0777);
+	fd=open("/home/ajvm/Desktop/fuse_ork/eval/the_fs",O_RDWR|O_CREAT|O_EXCL,0777);
 	if(fd<0){
-		fd=open("/home/ajvm/Desktop/fuse_ork/ak/the_fs",O_RDWR,0644);
+		fd=open("/home/ajvm/Desktop/fuse_ork/eval/the_fs",O_RDWR,0644);
 		if(fd<0)
 			exit(4);
-		char buf[9];
-		read(fd,(char *)&buf,8);
-		buf[8]='\0';
-		if(strcmp(buf,"AJARAKFS")!=0){
+		char id_buf1[9],id_buf2[9];
+		char bitmap_free1[2055],bitmap_free2[2055];
+		lseek(fd,0,SEEK_SET);
+		read(fd,(char *)&id_buf1,8);
+		read(fd,(char *)&bitmap_free1,2054);
+		lseek(fd,-BLOCKSIZE,SEEK_END);
+		read(fd,(char *)&id_buf2,8);
+		read(fd,(char *)&bitmap_free2,2054);
+		bitmap_free1[2054]='\0';
+		bitmap_free2[2054]='\0';
+		id_buf1[8]='\0';
+		id_buf2[8]='\0';
+	
+		if(strcmp(id_buf1,"AJARAKFS")!=0){
 			exit(4);
 		}
+		if(strcmp(id_buf1,"AJARAKFS")!=0)
+		{
+			exit(4);
+		}
+		if(strcmp(bitmap_free1,bitmap_free2)!=0)
+			exit(4);
+		//char bitmap_free1[2055],bitmap_free2[2055];
 		else{
 			return 1;		
 		}
@@ -82,7 +99,7 @@ static int opendisk(void){
 		int total_blocks=2046;
 		write(fd,(char *)&free_blocks,sizeof(free_blocks));
 		write(fd,(char *)&total_blocks,sizeof(total_blocks));
-		lseek(fd,-4096,SEEK_END);
+		lseek(fd,-BLOCKSIZE,SEEK_END);
 		write(fd,"AJARAKFS",8);
 		for(int i=0;i<2046;i++){ //set next 1022 bytes to zero
 			write(fd,"0",1);
@@ -98,7 +115,7 @@ static int opendisk(void){
 int superblockread(){
 	int n_free_blocks;
 	pthread_mutex_lock(&lock); //get a lock on the read and write from file
-	fd=open("/home/ajvm/Desktop/fuse_ork/ak/the_fs",O_RDWR);
+	fd=open("/home/ajvm/Desktop/fuse_ork/eval/the_fs",O_RDWR);
 	if(fd<0)
 		perror("open");	
 	lseek(fd,8+2046,SEEK_SET); //move to where the block info is stored
@@ -110,7 +127,7 @@ int superblockread(){
 char getblocktype(int block_no){ //function to know what kind of block it is, i.e. Inode,directory,data
 	struct disk_block temp; //temporary storage
 	pthread_mutex_lock(&lock); //get a lock on the read and write from file
-	fd=open("/home/ajvm/Desktop/fuse_ork/ak/the_fs",O_RDWR);
+	fd=open("/home/ajvm/Desktop/fuse_ork/eval/the_fs",O_RDWR);
 	if(fd<0)
 		perror("open");	
 	lseek(fd,BLOCKSIZE*(block_no+2)-sizeof(struct disk_block),SEEK_SET); //move to where the block info is stored
@@ -122,7 +139,7 @@ char getblocktype(int block_no){ //function to know what kind of block it is, i.
 int readblock(int block_no,char *data,int offset,size_t bytes){ //function that reads from a block. Not much error handling done
 	int read_done;	//how many bytes read done
 	pthread_mutex_lock(&lock); //get a lock on file read/write
-	fd=open("/home/ajvm/Desktop/fuse_ork/ak/the_fs",O_RDWR);
+	fd=open("/home/ajvm/Desktop/fuse_ork/eval/the_fs",O_RDWR);
 	if(fd<0)
 		perror("open");	
 	lseek(fd,(BLOCKSIZE*(block_no+1))+offset,SEEK_SET);	//move to beginning of block
@@ -141,7 +158,7 @@ int writeblock(int block_no,char *data,int offset,size_t bytes){ //function that
 	if(offset>BLOCKSIZE-sizeof(struct disk_block))
 		return -1;
 	pthread_mutex_lock(&lock);	//get a lock on file read/write
-	fd=open("/home/ajvm/Desktop/fuse_ork/ak/the_fs",O_RDWR);
+	fd=open("/home/ajvm/Desktop/fuse_ork/eval/the_fs",O_RDWR);
 	if(fd<0)
 		perror("open");
 	lseek(fd,(BLOCKSIZE*(block_no+1))+offset,SEEK_SET);	//move to beginning of the block
@@ -159,7 +176,7 @@ int writeblock(int block_no,char *data,int offset,size_t bytes){ //function that
 int get_next_block(int block_no,int nxorpr){ //function to get next and prev block numbers
 	struct disk_block temp; //block info buffer
 	pthread_mutex_lock(&lock); //get a lock on file read/write
-	fd=open("/home/ajvm/Desktop/fuse_ork/ak/the_fs",O_RDWR);
+	fd=open("/home/ajvm/Desktop/fuse_ork/eval/the_fs",O_RDWR);
 	if(fd<0)
 		perror("open");
 	lseek(fd,BLOCKSIZE*(block_no+2)-sizeof(struct disk_block),SEEK_SET); //move to block info
@@ -178,7 +195,7 @@ int reqblock(int block_no,char type){ //function to request a block
 	int prev=-1;
 	int next=-1;
 	pthread_mutex_lock(&lock); //get a lock on file read/write
-	fd=open("/home/ajvm/Desktop/fuse_ork/ak/the_fs",O_RDWR);
+	fd=open("/home/ajvm/Desktop/fuse_ork/eval/the_fs",O_RDWR);
 	if(fd<0)
 		perror("open");
 	lseek(fd,8+2046,SEEK_SET); //go to super block and get the number of free blocks
@@ -237,7 +254,7 @@ int relblock(int block_no){ //function to release a block assigned to you
 	if(block_no<0 && block_no >2046) //can't release a block that doesn't exist
 		return -1;
 	pthread_mutex_lock(&lock); //get a lock on file read/write
-	fd=open("/home/ajvm/Desktop/fuse_ork/ak/the_fs",O_RDWR);
+	fd=open("/home/ajvm/Desktop/fuse_ork/eval/the_fs",O_RDWR);
 	if(fd<0)
 		perror("open");
 	lseek(fd,8+block_no,SEEK_SET); //move to superblock's bitmap
@@ -1060,7 +1077,7 @@ static int ourfs_write(const char *path, const char *buf, size_t size, off_t off
 	char *newdata;
   // Calculate number of required blocks
 	blkcnt_t req_blocks = (offset + size + (BLOCKSIZE-sizeof(struct disk_block))- 1) / (BLOCKSIZE-sizeof(struct disk_block));
-
+	//req_blocks+=1;
 	printf("blocks:%d\n",req_blocks);
 
 	int max_data = (BLOCKSIZE-sizeof(struct disk_block));
@@ -1141,6 +1158,7 @@ static int ourfs_write(const char *path, const char *buf, size_t size, off_t off
 	}
 
 	updateTime(node, U_CTIME | U_MTIME);
+	//if
 	if(writeinode(node->vstat.st_ino , node) != 0)
 		return -errno;
 	return size;
