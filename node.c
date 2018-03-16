@@ -6,7 +6,11 @@
 
 //node should be allocated memory by calling function
 int getNodeRel(const char *path, struct node *root, struct node *node){
+<<<<<<< HEAD
 	printf("Get Node Rel:%s\n",path);
+=======
+	//printf("Get Node Rel:%s\n",path);
+>>>>>>> refs/remotes/origin/master
 	if(!S_ISDIR(root->vstat.st_mode)){	
 		errno = ENOTDIR;
 		return 0;
@@ -40,7 +44,10 @@ int getNodeRel(const char *path, struct node *root, struct node *node){
 
 	//dir_find will return the direntry structure	
 	if(!dir_find(root, name, namelen, &dirent,&blk_no,&entry_no)){
+<<<<<<< HEAD
 		//printf("DIR find problem\n");
+=======
+>>>>>>> refs/remotes/origin/master
 		errno = ENOENT;
 		return 0;
 	}
